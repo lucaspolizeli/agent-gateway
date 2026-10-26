@@ -32,6 +32,7 @@ function renderScreen(route: Route): ReactNode {
 
 export function App() {
   const route = useRoute();
+  const hasToken = adminToken() !== undefined;
   return (
     <div className="app">
       <header className="topbar">
@@ -49,8 +50,8 @@ export function App() {
           ))}
         </nav>
       </header>
-      {adminToken === undefined && <MissingTokenBanner />}
-      <main className="content">{renderScreen(route)}</main>
+      {!hasToken && <MissingTokenBanner />}
+      {hasToken && <main className="content">{renderScreen(route)}</main>}
     </div>
   );
 }
@@ -58,9 +59,8 @@ export function App() {
 function MissingTokenBanner() {
   return (
     <div className="banner" role="alert">
-      <b>Sem conexão com o agw.</b> Nenhum token de admin foi encontrado nesta página. Rode <code>agw serve</code> e
-      recarregue. Em desenvolvimento, o Vite lê o token de <code>state/admin-token</code>, criado pelo{" "}
-      <code>agw serve</code>.
+      <b>Sem acesso ao agw.</b> Esta aba não tem o token de admin: abra pelo comando <code>agw ui</code>. Em
+      desenvolvimento, use a URL com <code>#t=</code> que o Vite imprime ao iniciar.
     </div>
   );
 }

@@ -2,8 +2,9 @@
  * Wire contract between `agw serve`'s admin API (`/api/*`) and the web UI (`/ui`).
  * Types only: the UI imports this file directly, so it must not import runtime code.
  *
- * Every request carries the `x-agw-token` header with the token the server injects into
- * `/ui/index.html` as `<meta name="agw-token" content="...">`. Errors use `ApiError` with a 4xx/5xx status.
+ * Every request carries the `x-agw-token` header with the admin token. The pages never contain it: `agw ui`
+ * opens `/ui/#t=<token>` (read from `<home>/state/admin-token`), and the UI keeps it in `sessionStorage` and
+ * removes it from the URL. Errors use `ApiError` with a 4xx/5xx status.
  */
 
 // ---------- config ----------

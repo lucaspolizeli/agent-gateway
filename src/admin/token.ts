@@ -12,16 +12,27 @@ export function adminTokenPath(home: string): string {
   return join(home, "state", "admin-token");
 }
 
+/** The token `agw serve` uses, or undefined when it has not written a valid one yet. */
+export function readAdminToken(home: string): string | undefined {
+  const path = adminTokenPath(home);
+  if (!existsSync(path)) {
+    return undefined;
+  }
+  const current = readFileSync(path, "utf8").trim();
+  if (TOKEN_FORMAT.test(current)) {
+    return current;
+  }
+  return undefined;
+}
+
 /** Anything but 64 hex characters (an empty or hand-edited file) is replaced, never served. */
 export function ensureAdminToken(home: string): string {
   const path = adminTokenPath(home);
-  if (existsSync(path)) {
-    const current = readFileSync(path, "utf8").trim();
-    if (TOKEN_FORMAT.test(current)) {
-      return current;
-    }
-    rmSync(path);
+  const current = readAdminToken(home);
+  if (current !== undefined) {
+    return current;
   }
+  rmSync(path, { force: true });
   const token = randomBytes(32).toString("hex");
   writeFileAtomic(path, `${token}\n`, 0o600);
   return token;

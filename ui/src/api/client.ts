@@ -51,10 +51,11 @@ async function errorFrom(response: Response): Promise<ApiRequestError> {
 }
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
-  if (adminToken === undefined) {
-    throw new ApiRequestError(0, "Token de admin ausente. Inicie `agw serve` e recarregue a página.");
+  const token = adminToken();
+  if (token === undefined) {
+    throw new ApiRequestError(0, "Token de admin ausente. Abra pelo comando `agw ui`.");
   }
-  const headers: Record<string, string> = { "x-agw-token": adminToken };
+  const headers: Record<string, string> = { "x-agw-token": token };
   const init: RequestInit = { method, headers };
   if (body !== undefined) {
     headers["content-type"] = "application/json";

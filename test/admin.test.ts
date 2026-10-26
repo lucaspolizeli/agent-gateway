@@ -30,6 +30,7 @@ let home: string;
 let userHome: string;
 let project: string;
 let fakeBin: string;
+let openLog: string;
 let port: number;
 let token: string;
 let serve: ChildProcess;
@@ -97,7 +98,14 @@ function toolsChangedUntil(predicate: (names: string[]) => boolean): Promise<str
 
 function agw(args: string[]) {
   return spawnSync(join(repo, "bin", "agw"), args, {
-    env: { ...process.env, AGW_HOME: home, HOME: userHome, AGW_NODE: process.execPath, PATH: `${fakeBin}:${process.env.PATH}` },
+    env: {
+      ...process.env,
+      AGW_HOME: home,
+      HOME: userHome,
+      AGW_NODE: process.execPath,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      OPEN_LOG: openLog,
+    },
     encoding: "utf8",
   });
 }
@@ -114,12 +122,17 @@ before(async () => {
   project = join(base, "project");
   const bin = join(base, "bin");
   fakeBin = bin;
+  openLog = join(base, "opened-url");
   for (const dir of [home, userHome, project, bin]) {
     mkdirSync(dir, { recursive: true });
   }
   for (const client of ["claude", "codex", "grok"]) {
     writeFileSync(join(bin, client), "#!/bin/sh\nexit 0\n");
     chmodSync(join(bin, client), 0o755);
+  }
+  for (const opener of ["open", "xdg-open"]) {
+    writeFileSync(join(bin, opener), '#!/bin/sh\nprintf "%s" "$1" > "$OPEN_LOG"\n');
+    chmodSync(join(bin, opener), 0o755);
   }
   writeFileSync(
     join(home, "gateway.json"),
@@ -352,7 +365,7 @@ test("real folders in the user skill dirs can be imported into the hub", async (
   assert.deepEqual(await api("GET", "/api/skills/importable"), []);
 });
 
-test("the UI is served with the token, or a build hint when missing", async () => {
+test("the UI is served without the token, and refuses to be framed", async () => {
   const missing = await call("GET", "/ui/");
   assert.equal(missing.status, 503);
   assert.match(missing.text, /pnpm --dir ui install &amp;&amp; pnpm --dir ui build/);
@@ -364,14 +377,35 @@ test("the UI is served with the token, or a build hint when missing", async () =
 
   const index = await call("GET", "/ui/profiles/work", { headers: { "x-agw-token": "" } });
   assert.equal(index.status, 200);
-  assert.ok(index.text.includes(`<meta name="agw-token" content="${token}"></head>`));
+  assert.equal(index.text, "<html><head><title>x</title></head><body></body></html>");
+  assert.equal(index.headers["cache-control"], "no-store");
   const script = await call("GET", "/ui/assets/app.js");
   assert.equal(script.headers["content-type"], "text/javascript; charset=utf-8");
-  assert.equal((await call("GET", "/ui/assets/missing.js")).status, 404);
+  const notFound = await call("GET", "/ui/assets/missing.js");
+  assert.equal(notFound.status, 404);
   assert.equal((await call("GET", "/ui/..%2F..%2Fgateway.json")).status, 404);
+  for (const reply of [missing, index, script, notFound]) {
+    assert.equal(reply.text.includes(token), false);
+    assert.equal(reply.headers["x-frame-options"], "DENY");
+    assert.equal(reply.headers["content-security-policy"], "frame-ancestors 'none'");
+  }
   const root = await call("GET", "/");
   assert.equal(root.status, 302);
   assert.equal(root.headers.location, "/ui/");
+});
+
+test("agw ui opens the UI with the token in the URL fragment and does not print it", async () => {
+  const opened = agw(["ui", "--port", String(port)]);
+  assert.equal(opened.status, 0, opened.stderr);
+  assert.equal(opened.stdout.includes(token), false);
+  let url = "";
+  for (let attempt = 0; attempt < 50 && url === ""; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    if (existsSync(openLog)) {
+      url = readFileSync(openLog, "utf8");
+    }
+  }
+  assert.equal(url, `http://127.0.0.1:${port}/ui/#t=${token}`);
 });
 
 test("the home folder, or a folder that is the home through a symlink, cannot be a project", async () => {

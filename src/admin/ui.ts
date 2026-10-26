@@ -39,47 +39,46 @@ function isFile(path: string): boolean {
   return existsSync(path) && statSync(path).isFile();
 }
 
-function withToken(html: string, token: string): string {
-  const meta = `<meta name="agw-token" content="${token}">`;
-  if (html.includes("</head>")) {
-    return html.replace("</head>", `${meta}</head>`);
-  }
-  return meta + html;
-}
+/** Stops another page from framing the UI and clickjacking the admin actions. */
+const FRAMING_HEADERS = {
+  "x-frame-options": "DENY",
+  "content-security-policy": "frame-ancestors 'none'",
+};
 
 /**
  * Serves `<home>/ui/dist` under `/ui/`. Paths without a file extension fall back to index.html so the
- * SPA router can handle them; index.html carries the admin token and is never cached.
+ * SPA router can handle them; index.html is never cached. The pages carry no secret: `agw ui` hands
+ * the admin token to the browser in the URL fragment, which is never sent over the network.
  */
-export function serveUi(home: string, token: string, pathname: string, res: ServerResponse) {
+export function serveUi(home: string, pathname: string, res: ServerResponse) {
   const dist = resolve(home, "ui", "dist");
   const index = join(dist, "index.html");
   if (!isFile(index)) {
-    res.writeHead(503, { "content-type": CONTENT_TYPES[".html"]! }).end(NOT_BUILT);
+    res.writeHead(503, { ...FRAMING_HEADERS, "content-type": CONTENT_TYPES[".html"]! }).end(NOT_BUILT);
     return;
   }
   let relative: string;
   try {
     relative = decodeURIComponent(pathname.slice(UI_PREFIX.length));
   } catch {
-    res.writeHead(400).end("Bad path\n");
+    res.writeHead(400, FRAMING_HEADERS).end("Bad path\n");
     return;
   }
   const file = resolve(dist, relative);
   if (file !== dist && !file.startsWith(dist + sep)) {
-    res.writeHead(404).end("Not found\n");
+    res.writeHead(404, FRAMING_HEADERS).end("Not found\n");
     return;
   }
   if (file !== index && isFile(file)) {
     const type = CONTENT_TYPES[extname(file).toLowerCase()] ?? "application/octet-stream";
-    res.writeHead(200, { "content-type": type }).end(readFileSync(file));
+    res.writeHead(200, { ...FRAMING_HEADERS, "content-type": type }).end(readFileSync(file));
     return;
   }
   if (file !== index && extname(file) !== "") {
-    res.writeHead(404).end("Not found\n");
+    res.writeHead(404, FRAMING_HEADERS).end("Not found\n");
     return;
   }
   res
-    .writeHead(200, { "content-type": CONTENT_TYPES[".html"]!, "cache-control": "no-store" })
-    .end(withToken(readFileSync(index, "utf8"), token));
+    .writeHead(200, { ...FRAMING_HEADERS, "content-type": CONTENT_TYPES[".html"]!, "cache-control": "no-store" })
+    .end(readFileSync(index));
 }

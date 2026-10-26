@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { adminTokenPath, readAdminToken } from "./admin/token.ts";
 import type { ClientResult } from "./clients.ts";
 import { loadConfig, resolveProfile } from "./config.ts";
 import { createSessionServer, Gateway } from "./gateway.ts";
@@ -157,12 +158,17 @@ const commands: Record<string, Command> = {
       console.error(`Nothing answers at ${url}. Start it with "agw serve" or "agw service install".`);
       process.exit(1);
     }
+    const token = readAdminToken(home);
+    if (token === undefined) {
+      console.error(`No admin token in ${adminTokenPath(home)}. Start "agw serve" from this home first.`);
+      process.exit(1);
+    }
     let opener = "xdg-open";
     if (process.platform === "darwin") {
       opener = "open";
     }
-    spawn(opener, [url], { detached: true, stdio: "ignore" }).unref();
-    console.log(url);
+    spawn(opener, [`${url}#t=${token}`], { detached: true, stdio: "ignore" }).unref();
+    console.log(`Opened ${url}`);
   },
   service: (rest) => {
     const action = requireArg(rest[0], "install|uninstall");

@@ -1,8 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { captureAdminToken } from "./api/token.ts";
 import { App } from "./App.tsx";
 import "./styles.css";
+
+captureAdminToken();
 
 const queryClient = new QueryClient({
   defaultOptions: {

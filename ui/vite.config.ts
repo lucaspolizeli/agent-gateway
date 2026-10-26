@@ -1,34 +1,42 @@
 import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
-const tokenFile = fileURLToPath(new URL("../state/admin-token", import.meta.url));
+const agwHome = process.env.AGW_HOME ?? fileURLToPath(new URL("..", import.meta.url));
+const tokenFile = join(agwHome, "state", "admin-token");
 
-/** Mirrors what `agw serve` does in production, so the dev server talks to a running gateway. */
-function injectAdminToken(): Plugin {
+/**
+ * Prints the dev URL with the admin token in the fragment, the same hand-off `agw ui` does, so the dev
+ * server never serves the token in a page any local process could fetch.
+ */
+function printAdminUrl(): Plugin {
   return {
-    name: "agw-admin-token",
+    name: "agw-admin-url",
     apply: "serve",
-    transformIndexHtml() {
-      if (!existsSync(tokenFile)) {
-        return [];
-      }
-      const token = readFileSync(tokenFile, "utf8").trim();
-      if (token === "") {
-        return [];
-      }
-      return [{ tag: "meta", attrs: { name: "agw-token", content: token }, injectTo: "head" }];
+    configureServer(server) {
+      const printUrls = server.printUrls.bind(server);
+      server.printUrls = () => {
+        printUrls();
+        const local = server.resolvedUrls?.local[0];
+        const token = existsSync(tokenFile) ? readFileSync(tokenFile, "utf8").trim() : "";
+        if (local === undefined || token === "") {
+          server.config.logger.warn(`  Admin UI: no token in ${tokenFile}. Start "agw serve" first, then restart Vite.`);
+          return;
+        }
+        server.config.logger.info(`  Admin UI: ${local}#t=${token}`);
+      };
     },
   };
 }
 
 export default defineConfig({
   base: "/ui/",
-  plugins: [react(), injectAdminToken()],
+  plugins: [react(), printAdminUrl()],
   server: {
     proxy: {
-      "/api": "http://127.0.0.1:7820",
+      "/api": { target: "http://127.0.0.1:7820", changeOrigin: true },
     },
   },
   build: {

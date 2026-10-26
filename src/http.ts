@@ -93,7 +93,7 @@ export function serveHttp(home: string, port: number) {
   const surfaces: Surface[] = [
     { matches: (path) => path.startsWith("/mcp/"), checkHost: false, handle: createMcpHandler(pool, allowedHosts) },
     { matches: (path) => path === "/api" || path.startsWith("/api/"), checkHost: true, handle: api },
-    { matches: (path) => path.startsWith(UI_PREFIX), checkHost: true, handle: (_, res, url) => serveUi(home, token, url.pathname, res) },
+    { matches: (path) => path.startsWith(UI_PREFIX), checkHost: true, handle: (_, res, url) => serveUi(home, url.pathname, res) },
     {
       matches: (path) => path === "/" || path === "/ui",
       checkHost: true,
