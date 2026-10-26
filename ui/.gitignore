@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.tsbuildinfo
+# The root .gitignore ignores every `state/` folder; this one is source, not agw runtime state.
+!src/state/
