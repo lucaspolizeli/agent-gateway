@@ -13,13 +13,15 @@ export type Endpoint = { kind: "stdio"; command: string; args: string[] } | { ki
 
 export type Scope = { kind: "user" } | { kind: "project"; dir: string };
 
-export type ClientResult = { client: string; ok: boolean; detail: string };
+export type ClientName = "claude" | "codex" | "grok";
+
+export type ClientResult = { client: ClientName; ok: boolean; detail: string };
 
 function run(command: string, args: string[], cwd: string | undefined): void {
   execFileSync(command, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
 }
 
-function attempt(client: string, detail: string, action: () => void): ClientResult {
+function attempt(client: ClientName, detail: string, action: () => void): ClientResult {
   try {
     action();
     return { client, ok: true, detail };

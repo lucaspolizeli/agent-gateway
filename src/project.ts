@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { parse } from "smol-toml";
 import { PROJECT_CONFIG_FILES, registerAll, unregisterAll, type ClientResult, type Endpoint } from "./clients.ts";
 import { loadConfig, resolveProfile } from "./config.ts";
+import { errorMessage } from "./errors.ts";
 import { collectSkills, GLOBAL_SET, linkSkills, type LinkReport } from "./skills.ts";
 
 export type Transport = "stdio" | "http";
@@ -13,7 +14,11 @@ type State = { projects: Record<string, Binding> };
 
 /** Skill folders read by each client: Claude Code and Grok read `.claude/skills`, Codex reads `.agents/skills`. */
 const PROJECT_SKILL_DIRS = [".claude/skills", ".agents/skills"];
-const USER_SKILL_DIRS = [join(homedir(), ".claude", "skills"), join(homedir(), ".agents", "skills")];
+
+/** User-level skill folders of the same clients, read through `os.homedir()` on every call. */
+export function userSkillDirs(): string[] {
+  return [join(homedir(), ".claude", "skills"), join(homedir(), ".agents", "skills")];
+}
 
 export const DEFAULT_PORT = 7820;
 
@@ -103,12 +108,11 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function applyProject(home: string, dir: string, binding: Binding, port: number): ApplyReport {
-  const profile = resolveProfile(loadConfig(home), binding.profile);
+function linkProjectSkills(home: string, dir: string, profileName: string): LinkReport[] {
+  const profile = resolveProfile(loadConfig(home), profileName);
   const sets = profile.skillSets.filter((set) => set !== GLOBAL_SET);
   const skills = collectSkills(join(home, "skills"), sets);
-  const skillReports = PROJECT_SKILL_DIRS.map((sub) => linkSkills(join(dir, sub), skills, join(home, "skills")));
-  const clients = registerAll(endpointFor(home, binding.profile, binding.transport, port), { kind: "project", dir });
+  const reports = PROJECT_SKILL_DIRS.map((sub) => linkSkills(join(dir, sub), skills, join(home, "skills")));
 
   const excluded = [...PROJECT_CONFIG_FILES];
   for (const sub of PROJECT_SKILL_DIRS) {
@@ -117,7 +121,13 @@ function applyProject(home: string, dir: string, binding: Binding, port: number)
     }
   }
   writeGitExclude(dir, excluded);
-  return { dir, profile: binding.profile, clients, skills: skillReports };
+  return reports;
+}
+
+function applyProject(home: string, dir: string, binding: Binding, port: number): ApplyReport {
+  const skills = linkProjectSkills(home, dir, binding.profile);
+  const clients = registerAll(endpointFor(home, binding.profile, binding.transport, port), { kind: "project", dir });
+  return { dir, profile: binding.profile, clients, skills };
 }
 
 export function installProject(home: string, dir: string, binding: Binding, port: number): ApplyReport {
@@ -149,7 +159,7 @@ export function linkGlobalSkills(home: string): LinkReport[] {
   if (existsSync(join(skillsRoot, GLOBAL_SET))) {
     skills = collectSkills(skillsRoot, [GLOBAL_SET]);
   }
-  return USER_SKILL_DIRS.map((target) => linkSkills(target, skills, skillsRoot));
+  return userSkillDirs().map((target) => linkSkills(target, skills, skillsRoot));
 }
 
 export function installGlobal(home: string, transport: Transport, port: number) {
@@ -170,6 +180,30 @@ export function syncAll(home: string, port: number) {
     projects.push(applyProject(home, dir, binding, port));
   }
   return { global: linkGlobalSkills(home), projects, missing };
+}
+
+/**
+ * Re-links skills after the hub changed: the global set into the user-level folders, any other set
+ * into every installed project. Client registrations are left alone. A project that fails is logged
+ * and skipped so one broken profile does not block the rest.
+ */
+export function relinkSkills(home: string, changedSets: string[]) {
+  if (changedSets.includes(GLOBAL_SET)) {
+    linkGlobalSkills(home);
+  }
+  if (changedSets.every((set) => set === GLOBAL_SET)) {
+    return;
+  }
+  for (const [dir, binding] of Object.entries(readState(home).projects)) {
+    if (!existsSync(dir)) {
+      continue;
+    }
+    try {
+      linkProjectSkills(home, dir, binding.profile);
+    } catch (error) {
+      process.stderr.write(`[agent-gateway] relinking skills in ${dir}: ${errorMessage(error)}\n`);
+    }
+  }
 }
 
 export function listProjects(home: string) {
