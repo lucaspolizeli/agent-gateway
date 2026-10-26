@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { z } from "zod";
 import type * as Contract from "./admin/contract.ts";
-import { UserError } from "./errors.ts";
+import { errorMessage, UserError } from "./errors.ts";
 import { writeFileAtomic } from "./fsutil.ts";
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -112,6 +112,15 @@ export function parseConfig(raw: unknown): Config {
   return config;
 }
 
+/** The parser's own message can quote the text around the error, which may be a secret value. */
+function describeJsonError(error: unknown): string {
+  const at = /\(line (\d+) column (\d+)\)/.exec(errorMessage(error));
+  if (at) {
+    return `not valid JSON at line ${at[1]}, column ${at[2]}`;
+  }
+  return "not valid JSON";
+}
+
 export function loadConfig(home: string): Config {
   const path = configPath(home);
   if (!existsSync(path)) {
@@ -121,7 +130,7 @@ export function loadConfig(home: string): Config {
   try {
     raw = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    throw new UserError("invalid", `Invalid ${path}: ${String(error)}`);
+    throw new UserError("invalid", `Invalid ${path}: ${describeJsonError(error)}`);
   }
   try {
     return parseConfig(raw);
