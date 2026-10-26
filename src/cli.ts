@@ -75,14 +75,10 @@ function requireArg(value: string | undefined, name: string): string {
   return value;
 }
 
-async function main() {
-  const [command, ...rest] = positionals;
-  if (values.help || !command) {
-    console.log(USAGE);
-    return;
-  }
+type Command = (rest: string[]) => void | Promise<void>;
 
-  if (command === "stdio") {
+const commands: Record<string, Command> = {
+  stdio: async (rest) => {
     const pool = new GatewayPool(home);
     const gateway = await pool.start(requireArg(rest[0], "profile"));
     pool.watch();
@@ -92,15 +88,11 @@ async function main() {
       pool.closeAll().finally(() => process.exit(0));
     };
     await server.connect(transportStdio);
-    return;
-  }
-
-  if (command === "serve") {
+  },
+  serve: () => {
     serveHttp(home, port);
-    return;
-  }
-
-  if (command === "status") {
+  },
+  status: async (rest) => {
     const profile = resolveProfile(loadConfig(home), requireArg(rest[0], "profile"));
     const gateway = new Gateway(home, profile);
     await gateway.start();
@@ -116,34 +108,26 @@ async function main() {
     }
     console.log(`  skill sets: ${profile.skillSets.join(", ") || "(none)"}`);
     await gateway.close();
-    return;
-  }
-
-  if (command === "install") {
+  },
+  install: (rest) => {
     const report = installProject(home, rest[1] ?? process.cwd(), { profile: requireArg(rest[0], "profile"), transport }, port);
     console.log(`Installed profile ${report.profile} in ${report.dir}`);
     printClients(report.clients);
     printSkills(report.skills);
-    return;
-  }
-
-  if (command === "uninstall") {
+  },
+  uninstall: (rest) => {
     const report = uninstallProject(home, rest[0] ?? process.cwd());
     console.log(`Uninstalled ${report.dir}`);
     printClients(report.clients);
     printSkills(report.skills);
-    return;
-  }
-
-  if (command === "global") {
+  },
+  global: () => {
     const report = installGlobal(home, transport, port);
     console.log("Installed profile global at user level");
     printClients(report.clients);
     printSkills(report.skills);
-    return;
-  }
-
-  if (command === "sync") {
+  },
+  sync: () => {
     const report = syncAll(home, port);
     console.log("Global skills");
     printSkills(report.global);
@@ -155,10 +139,8 @@ async function main() {
     for (const dir of report.missing) {
       console.log(`${dir}: folder is gone, run "agw uninstall ${dir}" to forget it`);
     }
-    return;
-  }
-
-  if (command === "list") {
+  },
+  list: () => {
     const config = loadConfig(home);
     console.log("Profiles");
     for (const [name, profile] of Object.entries(config.profiles)) {
@@ -169,11 +151,21 @@ async function main() {
     for (const [dir, binding] of Object.entries(listProjects(home))) {
       console.log(`  ${dir} -> ${binding.profile} (${binding.transport})`);
     }
+  },
+};
+
+async function main() {
+  const [command, ...rest] = positionals;
+  if (values.help || !command) {
+    console.log(USAGE);
     return;
   }
-
-  console.error(`Unknown command "${command}"\n\n${USAGE}`);
-  process.exit(1);
+  const run = commands[command];
+  if (!run) {
+    console.error(`Unknown command "${command}"\n\n${USAGE}`);
+    process.exit(1);
+  }
+  await run(rest);
 }
 
 main().catch((error: unknown) => {
