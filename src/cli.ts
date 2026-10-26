@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -15,6 +16,7 @@ import {
   type Transport,
   uninstallProject,
 } from "./project.ts";
+import { installService, serviceLogPath, uninstallService } from "./service.ts";
 import type { LinkReport } from "./skills.ts";
 
 const USAGE = `agw - one MCP gateway and skill hub per company
@@ -26,7 +28,9 @@ const USAGE = `agw - one MCP gateway and skill hub per company
   agw status <profile>                   Connect to a profile's servers and report each one
   agw list                               Show profiles and installed projects
   agw stdio <profile>                    Run the gateway over stdio (what the clients launch)
-  agw serve [--port N]                   Run the gateway over HTTP at /mcp/<profile>
+  agw serve [--port N]                   Run the gateway over HTTP at /mcp/<profile>, admin UI at /ui/
+  agw ui                                 Open the admin UI of the running agw serve
+  agw service install|uninstall          Keep agw serve running at login through launchd (macOS)
 
 Home: ${"$"}AGW_HOME, else this repository. Port: --port, ${"$"}AGW_PORT, else ${DEFAULT_PORT}.`;
 
@@ -138,6 +142,35 @@ const commands: Record<string, Command> = {
     }
     for (const dir of report.missing) {
       console.log(`${dir}: folder is gone, run "agw uninstall ${dir}" to forget it`);
+    }
+  },
+  ui: async () => {
+    const url = `http://127.0.0.1:${port}/ui/`;
+    const running = await fetch(url, { signal: AbortSignal.timeout(1000) }).then(
+      () => true,
+      () => false,
+    );
+    if (!running) {
+      console.error(`Nothing answers at ${url}. Start it with "agw serve" or "agw service install".`);
+      process.exit(1);
+    }
+    let opener = "xdg-open";
+    if (process.platform === "darwin") {
+      opener = "open";
+    }
+    spawn(opener, [url], { detached: true, stdio: "ignore" }).unref();
+    console.log(url);
+  },
+  service: (rest) => {
+    const action = requireArg(rest[0], "install|uninstall");
+    if (action === "install") {
+      const path = installService(home, port);
+      console.log(`Loaded ${path}; agw serve now runs at login, logs in ${serviceLogPath(home)}`);
+    } else if (action === "uninstall") {
+      console.log(`Unloaded and removed ${uninstallService()}`);
+    } else {
+      console.error(`Unknown service action "${action}"\n\n${USAGE}`);
+      process.exit(1);
     }
   },
   list: () => {
