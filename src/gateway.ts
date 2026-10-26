@@ -7,11 +7,13 @@ import {
   CallToolRequestSchema,
   CallToolResultSchema,
   type CallToolResult,
+  ErrorCode,
   GetPromptRequestSchema,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
   ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
+  McpError,
   PromptListChangedNotificationSchema,
   type Prompt,
   ReadResourceRequestSchema,
@@ -21,27 +23,33 @@ import {
   type Tool,
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import type { ToolInfo, UpstreamState } from "./admin/contract.ts";
 import {
-  interpolate,
-  interpolateRecord,
+  interpolateSpec,
   isStdio,
   loadSecrets,
   type ResolvedProfile,
+  SEPARATOR,
   type ServerSpec,
+  usedSecretValues,
 } from "./config.ts";
+import { errorMessage, UserError } from "./errors.ts";
 
-/** Joins upstream server and item names: `github__create_issue`. Server slugs never contain `_`. */
-const SEPARATOR = "__";
 const STATUS_TOOL = `gateway${SEPARATOR}status`;
 const CONNECT_TIMEOUT_MS = 30_000;
 const CALL_TIMEOUT_MS = 10 * 60_000;
 
+/** `key` identifies the interpolated spec the upstream was started from, so a reconfigure can tell what changed. */
 type Upstream =
-  | { name: string; state: "connecting" }
-  | { name: string; state: "ready"; client: Client }
-  | { name: string; state: "failed"; error: string };
+  | { name: string; key: string; state: "connecting" }
+  | { name: string; key: string; state: "ready"; client: Client }
+  | { name: string; key: string; state: "failed"; error: string };
+
+/** A server spec with its secrets filled in, or the reason it cannot be. */
+export type ConnectPlan = { key: string; spec: ServerSpec; secretValues: string[] } | { key: string; error: string };
 
 type ListKind = "tools" | "prompts" | "resources";
+const ALL_KINDS: ListKind[] = ["tools", "prompts", "resources"];
 
 export function qualify(server: string, item: string): string {
   return `${server}${SEPARATOR}${item}`;
@@ -55,22 +63,40 @@ function split(qualified: string): { server: string; item: string } {
   return { server: qualified.slice(0, at), item: qualified.slice(at + SEPARATOR.length) };
 }
 
-function transportFor(spec: ServerSpec, secrets: Record<string, string>): Transport {
-  if (isStdio(spec)) {
-    return new StdioClientTransport({
-      command: interpolate(spec.command, secrets),
-      args: spec.args.map((arg) => interpolate(arg, secrets)),
-      env: { ...getDefaultEnvironment(), ...interpolateRecord(spec.env, secrets) },
-      cwd: spec.cwd,
-      stderr: "inherit",
-    });
+export function planConnection(spec: ServerSpec, secrets: Record<string, string>): ConnectPlan {
+  try {
+    const resolved = interpolateSpec(spec, secrets);
+    return { key: JSON.stringify(resolved), spec: resolved, secretValues: usedSecretValues(spec, secrets) };
+  } catch (error) {
+    return { key: `unresolved:${JSON.stringify(spec)}:${errorMessage(error)}`, error: errorMessage(error) };
   }
-  return new StreamableHTTPClientTransport(new URL(interpolate(spec.url, secrets)), {
-    requestInit: { headers: interpolateRecord(spec.headers, secrets) },
-  });
 }
 
-async function collectPages<T>(fetchPage: (cursor?: string) => Promise<{ items: T[]; nextCursor?: string }>) {
+/** Replaces every secret value in `text`, so upstream errors that echo a URL or header stay safe to show and log. */
+export function redact(text: string, secretValues: string[]): string {
+  let redacted = text;
+  for (const value of secretValues) {
+    if (value.length >= 4) {
+      redacted = redacted.replaceAll(value, "***");
+    }
+  }
+  return redacted;
+}
+
+export function transportFor(spec: ServerSpec, stderr: "inherit" | "pipe"): Transport {
+  if (isStdio(spec)) {
+    return new StdioClientTransport({
+      command: spec.command,
+      args: spec.args,
+      env: { ...getDefaultEnvironment(), ...spec.env },
+      cwd: spec.cwd,
+      stderr,
+    });
+  }
+  return new StreamableHTTPClientTransport(new URL(spec.url), { requestInit: { headers: spec.headers } });
+}
+
+export async function collectPages<T>(fetchPage: (cursor?: string) => Promise<{ items: T[]; nextCursor?: string }>) {
   const all: T[] = [];
   let cursor: string | undefined;
   do {
@@ -81,11 +107,21 @@ async function collectPages<T>(fetchPage: (cursor?: string) => Promise<{ items: 
   return all;
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`timed out after ${ms / 1000}s`)), ms).unref();
+  });
+  return Promise.race([promise, timeout]);
+}
+
+export async function connectClient(client: Client, spec: ServerSpec, timeoutMs: number, stderr: "inherit" | "pipe") {
+  await withTimeout(client.connect(transportFor(spec, stderr)), timeoutMs);
+}
+
+async function closeUpstream(upstream: Upstream | undefined) {
+  if (upstream?.state === "ready") {
+    await upstream.client.close().catch(() => {});
   }
-  return String(error);
 }
 
 /**
@@ -93,30 +129,64 @@ function errorMessage(error: unknown): string {
  * that connects to the same profile.
  */
 export class Gateway {
-  readonly profile: ResolvedProfile;
+  profile: ResolvedProfile;
+  private readonly home: string;
   private readonly upstreams = new Map<string, Upstream>();
   private readonly listeners = new Set<(kind: ListKind) => void>();
   private readonly resourceOwners = new Map<string, string>();
-  private readonly secrets: Record<string, string>;
 
   constructor(home: string, profile: ResolvedProfile) {
+    this.home = home;
     this.profile = profile;
-    this.secrets = loadSecrets(home, profile);
   }
 
-  async start(): Promise<void> {
-    await Promise.all([...this.profile.servers].map(([name, spec]) => this.connect(name, spec)));
+  start(): Promise<void> {
+    return this.reconfigure(this.profile);
+  }
+
+  /**
+   * Converges the upstreams on `profile`. Only servers whose interpolated spec changed reconnect,
+   * so editing one secret restarts only the servers that use it. Resolves once those have settled.
+   */
+  async reconfigure(profile: ResolvedProfile): Promise<void> {
+    const secrets = loadSecrets(this.home, profile);
+    const plans = new Map([...profile.servers].map(([name, spec]) => [name, planConnection(spec, secrets)]));
+    const hiddenChanged = !sameEntries(this.profile.hiddenTools, profile.hiddenTools);
+    this.profile = profile;
+
+    const pending: Array<Promise<void>> = [];
+    for (const name of [...this.upstreams.keys()]) {
+      if (!plans.has(name)) {
+        pending.push(closeUpstream(this.upstreams.get(name)));
+        this.upstreams.delete(name);
+      }
+    }
+    const removedAny = pending.length > 0;
+    for (const [name, plan] of plans) {
+      if (this.upstreams.get(name)?.key !== plan.key) {
+        pending.push(this.connect(name, plan));
+      }
+    }
+    if (removedAny) {
+      this.emit(...ALL_KINDS);
+    } else if (hiddenChanged) {
+      this.emit("tools");
+    }
+    await Promise.all(pending);
+  }
+
+  async reconnect(server: string): Promise<void> {
+    const spec = this.profile.servers.get(server);
+    if (!spec) {
+      throw new UserError("notFound", `Server "${server}" is not in profile "${this.profile.name}"`);
+    }
+    await this.connect(server, planConnection(spec, loadSecrets(this.home, this.profile)));
   }
 
   async close(): Promise<void> {
-    await Promise.allSettled(
-      [...this.upstreams.values()].map((upstream) => {
-        if (upstream.state === "ready") {
-          return upstream.client.close();
-        }
-        return undefined;
-      }),
-    );
+    const upstreams = [...this.upstreams.values()];
+    this.upstreams.clear();
+    await Promise.allSettled(upstreams.map(closeUpstream));
   }
 
   onListChanged(listener: (kind: ListKind) => void): () => void {
@@ -124,45 +194,77 @@ export class Gateway {
     return () => this.listeners.delete(listener);
   }
 
-  status() {
-    return [...this.upstreams.values()].map((upstream) => {
-      if (upstream.state === "failed") {
-        return { server: upstream.name, state: upstream.state, error: upstream.error };
+  async status(): Promise<UpstreamState[]> {
+    const toolCounts = new Map((await this.toolLists()).map(({ server, tools }) => [server, tools.length]));
+    return [...this.upstreams.values()].map((upstream): UpstreamState => {
+      if (upstream.state === "ready") {
+        return { server: upstream.name, state: "ready", toolCount: toolCounts.get(upstream.name) ?? 0 };
       }
-      return { server: upstream.name, state: upstream.state };
+      if (upstream.state === "failed") {
+        return { server: upstream.name, state: "failed", error: upstream.error };
+      }
+      return { server: upstream.name, state: "connecting" };
     });
   }
 
-  private async connect(name: string, spec: ServerSpec): Promise<void> {
-    this.upstreams.set(name, { name, state: "connecting" });
+  /**
+   * Replaces the upstream for `name`. A connect that finishes after its upstream was replaced or removed
+   * closes its own client, so a reconfigure never leaves a stray process behind.
+   */
+  private async connect(name: string, plan: ConnectPlan): Promise<void> {
+    const previous = this.upstreams.get(name);
+    const pending: Upstream = { name, key: plan.key, state: "connecting" };
+    this.upstreams.set(name, pending);
+    const closingPrevious = closeUpstream(previous);
+    if (previous?.state === "ready") {
+      this.emit(...ALL_KINDS);
+    }
+    if ("error" in plan) {
+      this.fail(pending, plan.error);
+      await closingPrevious;
+      return;
+    }
     const client = new Client({ name: `agent-gateway/${this.profile.name}`, version: "0.1.0" });
     client.onclose = () => {
       const current = this.upstreams.get(name);
       if (current?.state === "ready" && current.client === client) {
-        this.upstreams.set(name, { name, state: "failed", error: "connection closed" });
-        this.emit("tools");
+        this.upstreams.set(name, { name, key: current.key, state: "failed", error: "connection closed" });
+        this.emit(...ALL_KINDS);
       }
     };
     try {
-      const timeout = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`timed out after ${CONNECT_TIMEOUT_MS / 1000}s`)), CONNECT_TIMEOUT_MS).unref();
-      });
-      await Promise.race([client.connect(transportFor(spec, this.secrets)), timeout]);
+      await connectClient(client, plan.spec, CONNECT_TIMEOUT_MS, "inherit");
     } catch (error) {
-      this.upstreams.set(name, { name, state: "failed", error: errorMessage(error) });
-      process.stderr.write(`[agent-gateway] ${name}: ${errorMessage(error)}\n`);
+      this.fail(pending, redact(errorMessage(error), plan.secretValues));
+      await client.close().catch(() => {});
+      await closingPrevious;
+      return;
+    }
+    await closingPrevious;
+    if (this.upstreams.get(name) !== pending) {
       await client.close().catch(() => {});
       return;
     }
     client.setNotificationHandler(ToolListChangedNotificationSchema, async () => this.emit("tools"));
     client.setNotificationHandler(PromptListChangedNotificationSchema, async () => this.emit("prompts"));
     client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => this.emit("resources"));
-    this.upstreams.set(name, { name, state: "ready", client });
+    this.upstreams.set(name, { name, key: plan.key, state: "ready", client });
+    this.emit(...ALL_KINDS);
   }
 
-  private emit(kind: ListKind) {
-    for (const listener of this.listeners) {
-      listener(kind);
+  private fail(pending: Upstream, error: string) {
+    if (this.upstreams.get(pending.name) !== pending) {
+      return;
+    }
+    this.upstreams.set(pending.name, { name: pending.name, key: pending.key, state: "failed", error });
+    process.stderr.write(`[agent-gateway] ${pending.name}: ${error}\n`);
+  }
+
+  private emit(...kinds: ListKind[]) {
+    for (const kind of kinds) {
+      for (const listener of this.listeners) {
+        listener(kind);
+      }
     }
   }
 
@@ -204,14 +306,21 @@ export class Gateway {
     return items;
   }
 
-  async listTools(): Promise<Tool[]> {
-    const upstreamTools = await this.gather("tools", async (name, client) => {
+  /** Every upstream tool under its qualified name, hidden ones included. */
+  private async toolLists(): Promise<Array<{ server: string; tools: Tool[] }>> {
+    return this.gather("tools", async (name, client) => {
       const tools = await collectPages(async (cursor) => {
         const page = await client.listTools({ cursor });
         return { items: page.tools, nextCursor: page.nextCursor };
       });
-      return tools.map((tool) => ({ ...tool, name: qualify(name, tool.name) }));
+      return [{ server: name, tools: tools.map((tool) => ({ ...tool, name: qualify(name, tool.name) })) }];
     });
+  }
+
+  async listTools(): Promise<Tool[]> {
+    const upstreamTools = (await this.toolLists())
+      .flatMap(({ tools }) => tools)
+      .filter((tool) => !this.profile.hiddenTools.has(tool.name));
     const statusTool: Tool = {
       name: STATUS_TOOL,
       description: `Connection state of every MCP server in the "${this.profile.name}" gateway profile, with errors.`,
@@ -221,9 +330,27 @@ export class Gateway {
     return [statusTool, ...upstreamTools];
   }
 
+  /** Upstream tools as the admin UI shows them: hidden ones included and marked. */
+  async toolInfos(): Promise<ToolInfo[]> {
+    return (await this.toolLists()).flatMap(({ server, tools }) =>
+      tools.map((tool): ToolInfo => {
+        const hiddenBy = this.profile.hiddenTools.get(tool.name);
+        const info: ToolInfo = { name: tool.name, server, description: tool.description, hidden: hiddenBy !== undefined };
+        if (hiddenBy !== undefined) {
+          info.hiddenBy = hiddenBy;
+        }
+        return info;
+      }),
+    );
+  }
+
   async callTool(name: string, args: Record<string, unknown> | undefined): Promise<CallToolResult> {
     if (name === STATUS_TOOL) {
-      return { content: [{ type: "text", text: JSON.stringify(this.status(), null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify(await this.status(), null, 2) }] };
+    }
+    const hiddenBy = this.profile.hiddenTools.get(name);
+    if (hiddenBy !== undefined) {
+      throw new McpError(ErrorCode.InvalidParams, `Tool ${name} is hidden by profile "${hiddenBy}"`);
     }
     const { server, item } = split(name);
     let client: Client;
@@ -331,4 +458,8 @@ export function createSessionServer(gateway: Gateway): Server {
   });
   server.onclose = unsubscribe;
   return server;
+}
+
+function sameEntries(a: Map<string, string>, b: Map<string, string>): boolean {
+  return a.size === b.size && [...a].every(([key, value]) => b.get(key) === value);
 }

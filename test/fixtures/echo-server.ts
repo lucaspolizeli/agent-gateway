@@ -9,6 +9,9 @@ server.registerTool(
   { description: "Echoes text with the server label", inputSchema: { text: z.string() } },
   async ({ text }) => ({ content: [{ type: "text", text: `${label}:${text}` }] }),
 );
+server.registerTool("pid", { description: "Process id of this server" }, async () => ({
+  content: [{ type: "text", text: String(process.pid) }],
+}));
 server.registerPrompt("greet", { description: "Greeting" }, async () => ({
   messages: [{ role: "user", content: { type: "text", text: `hello from ${label}` } }],
 }));

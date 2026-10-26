@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { loadConfig, resolveProfile } from "./config.ts";
-import { createSessionServer, Gateway } from "./gateway.ts";
+import { createSessionServer } from "./gateway.ts";
+import { GatewayPool } from "./pool.ts";
 
 const ROUTE = /^\/mcp\/([a-z0-9-]+)\/?$/;
 
@@ -17,19 +17,9 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 
 /** Serves every profile at `http://127.0.0.1:<port>/mcp/<profile>`, one upstream pool per profile. */
 export function serveHttp(home: string, port: number) {
-  const gateways = new Map<string, Promise<Gateway>>();
+  const pool = new GatewayPool(home);
+  pool.watch();
   const sessions = new Map<string, StreamableHTTPServerTransport>();
-
-  const gatewayFor = (profileName: string) => {
-    let gateway = gateways.get(profileName);
-    if (!gateway) {
-      const created = new Gateway(home, resolveProfile(loadConfig(home), profileName));
-      gateway = created.start().then(() => created);
-      gateway.catch(() => gateways.delete(profileName));
-      gateways.set(profileName, gateway);
-    }
-    return gateway;
-  };
 
   const host = `127.0.0.1:${port}`;
   const server = createServer(async (req, res) => {
@@ -62,7 +52,7 @@ export function serveHttp(home: string, port: number) {
         res.writeHead(400).end("First request must be initialize\n");
         return;
       }
-      const gateway = await gatewayFor(match[1]!);
+      const gateway = await pool.start(match[1]!);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: randomUUID,
         enableDnsRebindingProtection: true,
@@ -95,15 +85,7 @@ export function serveHttp(home: string, port: number) {
 
   const shutdown = async () => {
     server.close();
-    const started = await Promise.allSettled(gateways.values());
-    await Promise.allSettled(
-      started.map((result) => {
-        if (result.status === "fulfilled") {
-          return result.value.close();
-        }
-        return undefined;
-      }),
-    );
+    await pool.closeAll();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);

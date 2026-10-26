@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { ClientResult } from "./clients.ts";
 import { loadConfig, resolveProfile } from "./config.ts";
 import { createSessionServer, Gateway } from "./gateway.ts";
+import { GatewayPool } from "./pool.ts";
 import { serveHttp } from "./http.ts";
 import {
   DEFAULT_PORT,
@@ -82,13 +83,13 @@ async function main() {
   }
 
   if (command === "stdio") {
-    const profile = resolveProfile(loadConfig(home), requireArg(rest[0], "profile"));
-    const gateway = new Gateway(home, profile);
-    await gateway.start();
+    const pool = new GatewayPool(home);
+    const gateway = await pool.start(requireArg(rest[0], "profile"));
+    pool.watch();
     const server = createSessionServer(gateway);
     const transportStdio = new StdioServerTransport();
     transportStdio.onclose = () => {
-      gateway.close().finally(() => process.exit(0));
+      pool.closeAll().finally(() => process.exit(0));
     };
     await server.connect(transportStdio);
     return;
@@ -103,15 +104,15 @@ async function main() {
     const profile = resolveProfile(loadConfig(home), requireArg(rest[0], "profile"));
     const gateway = new Gateway(home, profile);
     await gateway.start();
-    const tools = await gateway.listTools();
     console.log(`Profile ${profile.name} (${profile.chain.join(" > ")})`);
-    for (const entry of gateway.status()) {
-      const count = tools.filter((tool) => tool.name.startsWith(`${entry.server}__`)).length;
-      let line = `  ${entry.state.padEnd(10)} ${entry.server}  ${count} tools`;
-      if ("error" in entry) {
-        line = `  ${entry.state.padEnd(10)} ${entry.server}  ${entry.error}`;
+    for (const entry of await gateway.status()) {
+      let detail = "";
+      if (entry.state === "ready") {
+        detail = `${entry.toolCount} tools`;
+      } else if (entry.state === "failed") {
+        detail = entry.error;
       }
-      console.log(line);
+      console.log(`  ${entry.state.padEnd(10)} ${entry.server}  ${detail}`);
     }
     console.log(`  skill sets: ${profile.skillSets.join(", ") || "(none)"}`);
     await gateway.close();
