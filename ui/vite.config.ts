@@ -6,6 +6,7 @@ import { defineConfig, type Plugin } from "vite";
 
 const agwHome = process.env.AGW_HOME ?? fileURLToPath(new URL("..", import.meta.url));
 const tokenFile = join(agwHome, "state", "admin-token");
+const agwPort = process.env.AGW_PORT ?? "7820";
 
 /**
  * Prints the dev URL with the admin token in the fragment, the same hand-off `agw ui` does, so the dev
@@ -20,7 +21,10 @@ function printAdminUrl(): Plugin {
       server.printUrls = () => {
         printUrls();
         const local = server.resolvedUrls?.local[0];
-        const token = existsSync(tokenFile) ? readFileSync(tokenFile, "utf8").trim() : "";
+        let token = "";
+        if (existsSync(tokenFile)) {
+          token = readFileSync(tokenFile, "utf8").trim();
+        }
         if (local === undefined || token === "") {
           server.config.logger.warn(`  Admin UI: no token in ${tokenFile}. Start "agw serve" first, then restart Vite.`);
           return;
@@ -36,7 +40,7 @@ export default defineConfig({
   plugins: [react(), printAdminUrl()],
   server: {
     proxy: {
-      "/api": { target: "http://127.0.0.1:7820", changeOrigin: true },
+      "/api": { target: `http://127.0.0.1:${agwPort}`, changeOrigin: true },
     },
   },
   build: {
