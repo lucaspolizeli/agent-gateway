@@ -27,6 +27,7 @@ const ProfileSchema = z
     extends: z.array(slug).default([]),
     servers: z.array(slug).default([]),
     skills: z.array(slug).default([]),
+    hiddenTools: z.array(z.string()).default([]),
   })
   .strict();
 
