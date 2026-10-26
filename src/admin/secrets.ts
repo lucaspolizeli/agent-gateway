@@ -32,7 +32,7 @@ export function formatEnvLine(key: string, value: string): string {
 
 function write(home: string, profile: string, secrets: Record<string, string>) {
   const lines = Object.entries(secrets).map(([key, value]) => formatEnvLine(key, value));
-  writeFileAtomic(secretsPath(home, profile), lines.map((line) => `${line}\n`).join(""), 0o600);
+  writeFileAtomic(secretsPath(home, profile), lines.map((line) => `${line}\n`).join(""));
 }
 
 function view(home: string, profile: string): SecretsView {
