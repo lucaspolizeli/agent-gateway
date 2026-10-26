@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Clients launch this without a login shell, so node is located explicitly.
+set -euo pipefail
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+node_bin="${AGW_NODE:-$HOME/.nvm/versions/node/v$(cat "$here/.nvmrc")/bin/node}"
+if [[ ! -x "$node_bin" ]]; then
+  node_bin="$(command -v node)"
+fi
+exec "$node_bin" "$here/src/cli.ts" "$@"

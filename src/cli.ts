@@ -1,0 +1,185 @@
+import { dirname } from "node:path";
+import { parseArgs } from "node:util";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { ClientResult } from "./clients.ts";
+import { loadConfig, resolveProfile } from "./config.ts";
+import { createSessionServer, Gateway } from "./gateway.ts";
+import { serveHttp } from "./http.ts";
+import {
+  DEFAULT_PORT,
+  installGlobal,
+  installProject,
+  listProjects,
+  syncAll,
+  type Transport,
+  uninstallProject,
+} from "./project.ts";
+import type { LinkReport } from "./skills.ts";
+
+const USAGE = `agw - one MCP gateway and skill hub per company
+
+  agw install <profile> [dir] [--http]   Wire a project (default: cwd) to a profile
+  agw uninstall [dir]                    Remove the gateway entries and skill links
+  agw global [--http]                    Wire the "global" profile at user level, link global skills
+  agw sync                               Re-link skills and entries for every installed project
+  agw status <profile>                   Connect to a profile's servers and report each one
+  agw list                               Show profiles and installed projects
+  agw stdio <profile>                    Run the gateway over stdio (what the clients launch)
+  agw serve [--port N]                   Run the gateway over HTTP at /mcp/<profile>
+
+Home: ${"$"}AGW_HOME, else this repository. Port: --port, ${"$"}AGW_PORT, else ${DEFAULT_PORT}.`;
+
+const home = process.env.AGW_HOME ?? dirname(import.meta.dirname);
+
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
+  options: {
+    http: { type: "boolean", default: false },
+    port: { type: "string" },
+    help: { type: "boolean", short: "h", default: false },
+  },
+});
+
+const port = Number(values.port ?? process.env.AGW_PORT ?? DEFAULT_PORT);
+let transport: Transport = "stdio";
+if (values.http) {
+  transport = "http";
+}
+
+function printClients(results: ClientResult[]) {
+  for (const result of results) {
+    let mark = "ok  ";
+    if (!result.ok) {
+      mark = "FAIL";
+    }
+    console.log(`  ${mark} ${result.client}: ${result.detail}`);
+  }
+}
+
+function printSkills(reports: LinkReport[]) {
+  for (const report of reports) {
+    const parts = [`+${report.linked.length}`, `-${report.removed.length}`];
+    console.log(`  skills ${report.target}: ${parts.join(" ")}`);
+    if (report.skipped.length > 0) {
+      console.log(`    skipped (a non-gateway entry has the same name): ${report.skipped.join(", ")}`);
+    }
+  }
+}
+
+function requireArg(value: string | undefined, name: string): string {
+  if (!value) {
+    console.error(`Missing <${name}>\n\n${USAGE}`);
+    process.exit(1);
+  }
+  return value;
+}
+
+async function main() {
+  const [command, ...rest] = positionals;
+  if (values.help || !command) {
+    console.log(USAGE);
+    return;
+  }
+
+  if (command === "stdio") {
+    const profile = resolveProfile(loadConfig(home), requireArg(rest[0], "profile"));
+    const gateway = new Gateway(home, profile);
+    await gateway.start();
+    const server = createSessionServer(gateway);
+    const transportStdio = new StdioServerTransport();
+    transportStdio.onclose = () => {
+      gateway.close().finally(() => process.exit(0));
+    };
+    await server.connect(transportStdio);
+    return;
+  }
+
+  if (command === "serve") {
+    serveHttp(home, port);
+    return;
+  }
+
+  if (command === "status") {
+    const profile = resolveProfile(loadConfig(home), requireArg(rest[0], "profile"));
+    const gateway = new Gateway(home, profile);
+    await gateway.start();
+    const tools = await gateway.listTools();
+    console.log(`Profile ${profile.name} (${profile.chain.join(" > ")})`);
+    for (const entry of gateway.status()) {
+      const count = tools.filter((tool) => tool.name.startsWith(`${entry.server}__`)).length;
+      let line = `  ${entry.state.padEnd(10)} ${entry.server}  ${count} tools`;
+      if ("error" in entry) {
+        line = `  ${entry.state.padEnd(10)} ${entry.server}  ${entry.error}`;
+      }
+      console.log(line);
+    }
+    console.log(`  skill sets: ${profile.skillSets.join(", ") || "(none)"}`);
+    await gateway.close();
+    return;
+  }
+
+  if (command === "install") {
+    const report = installProject(home, rest[1] ?? process.cwd(), { profile: requireArg(rest[0], "profile"), transport }, port);
+    console.log(`Installed profile ${report.profile} in ${report.dir}`);
+    printClients(report.clients);
+    printSkills(report.skills);
+    return;
+  }
+
+  if (command === "uninstall") {
+    const report = uninstallProject(home, rest[0] ?? process.cwd());
+    console.log(`Uninstalled ${report.dir}`);
+    printClients(report.clients);
+    printSkills(report.skills);
+    return;
+  }
+
+  if (command === "global") {
+    const report = installGlobal(home, transport, port);
+    console.log("Installed profile global at user level");
+    printClients(report.clients);
+    printSkills(report.skills);
+    return;
+  }
+
+  if (command === "sync") {
+    const report = syncAll(home, port);
+    console.log("Global skills");
+    printSkills(report.global);
+    for (const project of report.projects) {
+      console.log(`${project.dir} (${project.profile})`);
+      printClients(project.clients);
+      printSkills(project.skills);
+    }
+    for (const dir of report.missing) {
+      console.log(`${dir}: folder is gone, run "agw uninstall ${dir}" to forget it`);
+    }
+    return;
+  }
+
+  if (command === "list") {
+    const config = loadConfig(home);
+    console.log("Profiles");
+    for (const [name, profile] of Object.entries(config.profiles)) {
+      const parents = profile.extends.map((parent) => ` extends ${parent}`).join("");
+      console.log(`  ${name}${parents}: servers [${profile.servers.join(", ")}] skills [${profile.skills.join(", ")}]`);
+    }
+    console.log("Projects");
+    for (const [dir, binding] of Object.entries(listProjects(home))) {
+      console.log(`  ${dir} -> ${binding.profile} (${binding.transport})`);
+    }
+    return;
+  }
+
+  console.error(`Unknown command "${command}"\n\n${USAGE}`);
+  process.exit(1);
+}
+
+main().catch((error: unknown) => {
+  let message = String(error);
+  if (error instanceof Error) {
+    message = error.message;
+  }
+  console.error(message);
+  process.exit(1);
+});
