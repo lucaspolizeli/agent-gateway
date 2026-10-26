@@ -114,8 +114,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([promise, timeout]);
 }
 
-export async function connectClient(client: Client, spec: ServerSpec, timeoutMs: number, stderr: "inherit" | "pipe") {
-  await withTimeout(client.connect(transportFor(spec, stderr)), timeoutMs);
+export async function connectClient(client: Client, transport: Transport, timeoutMs: number) {
+  await withTimeout(client.connect(transport), timeoutMs);
 }
 
 async function closeUpstream(upstream: Upstream | undefined) {
@@ -233,7 +233,7 @@ export class Gateway {
       }
     };
     try {
-      await connectClient(client, plan.spec, CONNECT_TIMEOUT_MS, "inherit");
+      await connectClient(client, transportFor(plan.spec, "inherit"), CONNECT_TIMEOUT_MS);
     } catch (error) {
       this.fail(pending, redact(errorMessage(error), plan.secretValues));
       await client.close().catch(() => {});

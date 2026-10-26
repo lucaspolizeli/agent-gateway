@@ -1,0 +1,374 @@
+import assert from "node:assert/strict";
+import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readlinkSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { request as httpRequest } from "node:http";
+import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, before, test } from "node:test";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
+
+const repo = join(import.meta.dirname, "..");
+const fixture = join(import.meta.dirname, "fixtures", "echo-server.ts");
+const SECRET = "s3cr3t-value-that-must-not-leak";
+const echo = (label: string) => ({ command: process.execPath, args: [fixture], env: { ECHO_LABEL: label } });
+
+let home: string;
+let userHome: string;
+let project: string;
+let port: number;
+let token: string;
+let serve: ChildProcess;
+let mcp: Client;
+
+type Reply = { status: number; text: string; json: unknown; headers: Record<string, string | string[] | undefined> };
+
+function call(method: string, path: string, options: { body?: unknown; headers?: Record<string, string> } = {}): Promise<Reply> {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { host: "127.0.0.1", port, method, path, headers: { "x-agw-token": token, "content-type": "application/json", ...options.headers } },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          let json: unknown;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            json = undefined;
+          }
+          resolve({ status: res.statusCode!, text, json, headers: res.headers });
+        });
+      },
+    );
+    req.on("error", reject);
+    if (typeof options.body === "string") {
+      req.write(options.body);
+    } else if (options.body !== undefined) {
+      req.write(JSON.stringify(options.body));
+    }
+    req.end();
+  });
+}
+
+async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const reply = await call(method, path, { body });
+  assert.equal(reply.status, 200, `${method} ${path} -> ${reply.status} ${reply.text}`);
+  return reply.json as T;
+}
+
+function freePort(): Promise<number> {
+  return new Promise((resolve) => {
+    const probe = createServer().listen(0, "127.0.0.1", () => {
+      const { port: free } = probe.address() as { port: number };
+      probe.close(() => resolve(free));
+    });
+  });
+}
+
+/** Resolves once a tools/list_changed arrives and the tool list then satisfies `predicate`. */
+function toolsChangedUntil(predicate: (names: string[]) => boolean): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("no matching tools/list_changed within 10s")), 10_000);
+    mcp.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      const names = (await mcp.listTools()).tools.map((tool) => tool.name);
+      if (predicate(names)) {
+        clearTimeout(timer);
+        resolve(names);
+      }
+    });
+  });
+}
+
+function makeSkill(dir: string, name: string) {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: ${name} things\n---\nBody\n`);
+}
+
+before(async () => {
+  const base = mkdtempSync(join(tmpdir(), "agw-admin-"));
+  home = join(base, "home");
+  userHome = join(base, "user");
+  project = join(base, "project");
+  const bin = join(base, "bin");
+  for (const dir of [home, userHome, project, bin]) {
+    mkdirSync(dir, { recursive: true });
+  }
+  for (const client of ["claude", "codex", "grok"]) {
+    writeFileSync(join(bin, client), "#!/bin/sh\nexit 0\n");
+    chmodSync(join(bin, client), 0o755);
+  }
+  writeFileSync(
+    join(home, "gateway.json"),
+    JSON.stringify({
+      servers: { alpha: echo("alpha") },
+      profiles: { global: { skills: ["global"] }, work: { extends: ["global"], servers: ["alpha"], skills: ["globex"] } },
+    }),
+  );
+  for (const set of ["global", "globex"]) {
+    mkdirSync(join(home, "skills", set), { recursive: true });
+  }
+
+  port = await freePort();
+  serve = spawn(join(repo, "bin", "agw"), ["serve", "--port", String(port)], {
+    env: { ...process.env, AGW_HOME: home, HOME: userHome, AGW_NODE: process.execPath, PATH: `${bin}:${process.env.PATH}` },
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  let stderr = "";
+  serve.stderr!.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`serve did not start:\n${stderr}`)), 10_000);
+    serve.stderr!.on("data", () => {
+      if (stderr.includes("listening on")) {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+  });
+  token = readFileSync(join(home, "state", "admin-token"), "utf8").trim();
+
+  mcp = new Client({ name: "test", version: "1.0.0" });
+  await mcp.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/work`)));
+});
+
+after(async () => {
+  await mcp.close();
+  serve.kill("SIGTERM");
+});
+
+test("the admin token file is private and every /api request needs it", async () => {
+  assert.equal(statSync(join(home, "state", "admin-token")).mode & 0o777, 0o600);
+  assert.equal((await call("GET", "/api/config", { headers: { "x-agw-token": "" } })).status, 401);
+  assert.equal((await call("GET", "/api/config", { headers: { "x-agw-token": "wrong" } })).status, 401);
+  const reply = await call("GET", "/api/config");
+  assert.equal(reply.status, 200);
+  assert.deepEqual(Object.keys((reply.json as { servers: object }).servers), ["alpha"]);
+});
+
+test("a foreign Host header is refused on /api and /ui", async () => {
+  assert.equal((await call("GET", "/api/config", { headers: { host: "evil.example.com" } })).status, 403);
+  assert.equal((await call("GET", "/ui/", { headers: { host: `evil.example.com:${port}` } })).status, 403);
+});
+
+test("unknown routes, wrong methods and bad params are 4xx", async () => {
+  assert.equal((await call("GET", "/api/nope")).status, 404);
+  assert.equal((await call("DELETE", "/api/config")).status, 405);
+  assert.equal((await call("GET", "/api/skills/globex/..%2F..%2Fgateway.json")).status, 400);
+  assert.equal((await call("POST", "/api/config/edits", { body: { op: "explode" } })).status, 400);
+});
+
+test("a config edit reaches an open MCP session with tools/list_changed", async () => {
+  assert.deepEqual((await mcp.listTools()).tools.map((tool) => tool.name).sort(), ["alpha__echo", "alpha__pid", "gateway__status"]);
+  const changed = toolsChangedUntil((names) => names.includes("beta__echo"));
+  await api("POST", "/api/config/edits", { op: "upsertServer", name: "beta", spec: echo("beta") });
+  await api("POST", "/api/config/edits", {
+    op: "upsertProfile",
+    name: "work",
+    profile: { extends: ["global"], servers: ["alpha", "beta"], skills: ["globex"] },
+  });
+  const names = await changed;
+  assert.ok(names.includes("alpha__echo"));
+  const status = await api<{ running: boolean; upstreams: unknown[] }>("GET", "/api/profiles/work/status");
+  assert.equal(status.running, true);
+  assert.deepEqual(
+    status.upstreams,
+    [
+      { server: "alpha", state: "ready", toolCount: 2 },
+      { server: "beta", state: "ready", toolCount: 2 },
+    ],
+  );
+});
+
+test("a secret is stored privately, used by the server, and never returned", async () => {
+  const gone = toolsChangedUntil((names) => !names.includes("beta__echo"));
+  await api("POST", "/api/config/edits", { op: "upsertServer", name: "beta", spec: echo("${BETA_LABEL}") });
+  await gone;
+  const status = await api<{ upstreams: Array<{ server: string }> }>("GET", "/api/profiles/work/status");
+  assert.deepEqual(
+    status.upstreams.find((upstream) => upstream.server === "beta"),
+    { server: "beta", state: "failed", error: "Missing secret ${BETA_LABEL}" },
+  );
+  const profiles = await api<Array<{ name: string; missingSecrets: string[] }>>("GET", "/api/profiles");
+  assert.deepEqual(profiles.find((profile) => profile.name === "work")?.missingSecrets, ["BETA_LABEL"]);
+
+  const changed = toolsChangedUntil((names) => names.includes("beta__echo"));
+  const tricky = `${SECRET} 'quoted' "double" # not a comment\nsecond line`;
+  const view = await call("PUT", "/api/secrets/work/BETA_LABEL", { body: { value: tricky } });
+  assert.deepEqual(view.json, { profile: "work", keys: ["BETA_LABEL"] });
+  assert.equal(statSync(join(home, "secrets", "work.env")).mode & 0o777, 0o600);
+  await changed;
+  const echoed = await mcp.callTool({ name: "beta__echo", arguments: { text: "hi" } });
+  assert.deepEqual(echoed.content, [{ type: "text", text: `${tricky}:hi` }]);
+
+  const replies = [
+    view,
+    await call("GET", "/api/config"),
+    await call("GET", "/api/profiles"),
+    await call("GET", "/api/profiles/work/status"),
+    await call("POST", "/api/profiles/work/servers/beta/reconnect"),
+    await call("GET", "/api/secrets"),
+    await call("PUT", "/api/secrets/work/OTHER", { body: { value: SECRET, extra: SECRET } }),
+    await call("PUT", "/api/secrets/work/OTHER", { body: `{"value": ${SECRET}}` }),
+    await call("POST", "/api/servers/test", {
+      body: { spec: { url: "http://127.0.0.1:1/${BETA_LABEL}" }, profile: "work" },
+    }),
+    await call("POST", "/api/servers/test", { body: { spec: echo("${BETA_LABEL}"), profile: "work" } }),
+  ];
+  for (const reply of replies) {
+    assert.equal(reply.text.includes(SECRET.slice(0, 6)), false, `secret leaked in: ${reply.text}`);
+  }
+  assert.deepEqual(
+    (await api<Array<{ name: string; missingSecrets: string[] }>>("GET", "/api/profiles")).map((p) => p.missingSecrets),
+    [[], []],
+  );
+  assert.deepEqual(await api("DELETE", "/api/secrets/work/BETA_LABEL"), { profile: "work", keys: [] });
+  assert.equal((await call("DELETE", "/api/secrets/work/BETA_LABEL")).status, 404);
+});
+
+test("a hidden tool is neither listed nor callable", async () => {
+  const changed = toolsChangedUntil((names) => !names.includes("alpha__echo"));
+  await api("POST", "/api/config/edits", { op: "setToolHidden", profile: "global", tool: "alpha__echo", hidden: true });
+  const names = await changed;
+  assert.ok(names.includes("alpha__pid"));
+  await assert.rejects(mcp.callTool({ name: "alpha__echo", arguments: { text: "hi" } }), /hidden by profile "global"/);
+  const status = await api<{ tools: Array<{ name: string; hidden: boolean; hiddenBy?: string }> }>(
+    "GET",
+    "/api/profiles/work/status",
+  );
+  assert.deepEqual(
+    status.tools.find((tool) => tool.name === "alpha__echo"),
+    { name: "alpha__echo", server: "alpha", description: "Echoes text with the server label", hidden: true, hiddenBy: "global" },
+  );
+});
+
+test("an invalid edit is refused and leaves gateway.json unchanged", async () => {
+  const before = readFileSync(join(home, "gateway.json"), "utf8");
+  const unknownServer = await call("POST", "/api/config/edits", {
+    body: { op: "upsertProfile", name: "acme", profile: { servers: ["github"] } },
+  });
+  assert.equal(unknownServer.status, 400);
+  assert.deepEqual(unknownServer.json, { error: 'Profile "acme" uses unknown server "github"' });
+  assert.equal((await call("POST", "/api/config/edits", { body: { op: "removeServer", name: "nope" } })).status, 404);
+  assert.equal((await call("POST", "/api/config/edits", { body: { op: "removeProfile", name: "global" } })).status, 409);
+  assert.equal(readFileSync(join(home, "gateway.json"), "utf8"), before);
+});
+
+test("servers can be tested before saving without leaving a process behind", async () => {
+  const marker = `probe-${process.pid}-${Date.now()}`;
+  const spec = { ...echo("probe"), args: [fixture, marker] };
+  const ok = await api<{ ok: boolean; tools: Array<{ name: string }> }>("POST", "/api/servers/test", { spec });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.tools.map((tool) => tool.name).sort(), ["echo", "pid"]);
+  assert.throws(() => execFileSync("pgrep", ["-f", marker]), "the probe server exited");
+  const failed = await api<{ ok: boolean; error: string }>("POST", "/api/servers/test", { spec: { command: "/nonexistent/binary" } });
+  assert.equal(failed.ok, false);
+  assert.match(failed.error, /ENOENT|nonexistent/);
+});
+
+test("projects install through the API and skills stay linked as they are created, moved and deleted", async () => {
+  const installed = await api<{ dir: string; clients: Array<{ client: string; ok: boolean }> }>("POST", "/api/projects", {
+    dir: project,
+    profile: "work",
+    transport: "http",
+  });
+  assert.deepEqual(installed.clients.map(({ client, ok }) => [client, ok]), [["claude", true], ["codex", true], ["grok", true]]);
+  assert.deepEqual(await api("GET", "/api/projects"), [{ dir: project, profile: "work", transport: "http", exists: true }]);
+  assert.equal((await call("DELETE", "/api/config/edits", {})).status, 405);
+  assert.equal((await call("POST", "/api/config/edits", { body: { op: "removeProfile", name: "work" } })).status, 409);
+
+  const sets = await api<Array<{ name: string }>>("POST", "/api/skills/sets", { name: "acme" });
+  assert.deepEqual(sets.map((set) => set.name), ["acme", "global", "globex"]);
+  assert.equal((await call("POST", "/api/skills/sets", { body: { name: "acme" } })).status, 409);
+
+  const content = "---\nname: deploy\ndescription: >\n  Ships the\n  service\n---\nSteps\n";
+  const doc = await api("PUT", "/api/skills/acme/deploy", { content });
+  assert.deepEqual(doc, { name: "deploy", set: "acme", description: "Ships the service", content, files: [] });
+  assert.equal((await call("PUT", "/api/skills/acme/deploy", { body: { content: "no frontmatter" } })).status, 400);
+
+  const linked = join(project, ".claude", "skills", "deploy");
+  assert.equal(existsSync(linked), false, "acme is not in the work profile");
+  const moved = await api<Array<{ name: string; skills: Array<{ name: string }>; usedBy: string[]; scope: string }>>(
+    "POST",
+    "/api/skills/acme/deploy/move",
+    { toSet: "globex" },
+  );
+  assert.deepEqual(
+    moved.map(({ name, skills, usedBy, scope }) => ({ name, skills: skills.map((skill) => skill.name), usedBy, scope })),
+    [
+      { name: "acme", skills: [], usedBy: [], scope: "project" },
+      { name: "global", skills: [], usedBy: ["global"], scope: "user" },
+      { name: "globex", skills: ["deploy"], usedBy: ["work"], scope: "project" },
+    ],
+  );
+  assert.equal(readlinkSync(linked), join(home, "skills", "globex", "deploy"));
+  assert.equal((await api<{ content: string }>("GET", "/api/skills/globex/deploy")).content, content);
+
+  await api("DELETE", "/api/skills/globex/deploy");
+  assert.equal(existsSync(join(home, "skills", "globex", "deploy")), false);
+  assert.equal(lstatSync(join(project, ".claude", "skills")).isDirectory(), true);
+  assert.equal(existsSync(linked) || isLink(linked), false, "the stale link is pruned");
+  assert.equal((await call("GET", "/api/skills/globex/deploy")).status, 404);
+});
+
+test("real folders in the user skill dirs can be imported into the hub", async () => {
+  const userSkills = join(userHome, ".claude", "skills");
+  makeSkill(join(userSkills, "notes"), "notes");
+  makeSkill(join(userHome, "elsewhere", "linked"), "linked");
+  symlinkSync(join(userHome, "elsewhere", "linked"), join(userSkills, "linked"));
+
+  const importable = await api("GET", "/api/skills/importable");
+  assert.deepEqual(importable, [{ name: "notes", path: join(userSkills, "notes"), description: "notes things" }]);
+  assert.equal((await call("POST", "/api/skills/import", { body: { path: join(userHome, "elsewhere", "linked"), toSet: "global" } })).status, 404);
+
+  await api("POST", "/api/skills/import", { path: join(userSkills, "notes"), toSet: "global" });
+  assert.equal(existsSync(join(home, "skills", "global", "notes", "SKILL.md")), true);
+  assert.equal(readlinkSync(join(userSkills, "notes")), join(home, "skills", "global", "notes"));
+  assert.equal(readlinkSync(join(userHome, ".agents", "skills", "notes")), join(home, "skills", "global", "notes"));
+  assert.deepEqual(await api("GET", "/api/skills/importable"), []);
+});
+
+test("the UI is served with the token, or a build hint when missing", async () => {
+  const missing = await call("GET", "/ui/");
+  assert.equal(missing.status, 503);
+  assert.match(missing.text, /pnpm --dir ui install &amp;&amp; pnpm --dir ui build/);
+
+  const dist = join(home, "ui", "dist");
+  mkdirSync(join(dist, "assets"), { recursive: true });
+  writeFileSync(join(dist, "index.html"), "<html><head><title>x</title></head><body></body></html>");
+  writeFileSync(join(dist, "assets", "app.js"), "console.log(1)");
+
+  const index = await call("GET", "/ui/profiles/work", { headers: { "x-agw-token": "" } });
+  assert.equal(index.status, 200);
+  assert.ok(index.text.includes(`<meta name="agw-token" content="${token}"></head>`));
+  const script = await call("GET", "/ui/assets/app.js");
+  assert.equal(script.headers["content-type"], "text/javascript; charset=utf-8");
+  assert.equal((await call("GET", "/ui/assets/missing.js")).status, 404);
+  assert.equal((await call("GET", "/ui/..%2F..%2Fgateway.json")).status, 404);
+  const root = await call("GET", "/");
+  assert.equal(root.status, 302);
+  assert.equal(root.headers.location, "/ui/");
+});
+
+function isLink(path: string): boolean {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
