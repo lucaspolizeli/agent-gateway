@@ -23,7 +23,6 @@ export class GatewayPool {
     return this.gateways.get(profile)?.gateway;
   }
 
-  /** Throws when the profile is unknown or the config is invalid. */
   async start(profile: string): Promise<Gateway> {
     let entry = this.gateways.get(profile);
     if (!entry) {

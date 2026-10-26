@@ -17,7 +17,6 @@ function xml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/** The launchd agent that keeps `agw serve` running for the logged-in user. */
 export function launchAgentPlist(home: string, port: number): string {
   const args = [join(home, "bin", "agw"), "serve", "--port", String(port)];
   const log = xml(serviceLogPath(home));

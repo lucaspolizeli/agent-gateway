@@ -45,8 +45,7 @@ type Upstream =
   | { name: string; key: string; state: "ready"; client: Client }
   | { name: string; key: string; state: "failed"; error: string };
 
-/** A server spec with its secrets filled in, or the reason it cannot be. */
-export type ConnectPlan = { key: string; spec: ServerSpec; secretValues: string[] } | { key: string; error: string };
+type ConnectPlan = { key: string; spec: ServerSpec; secretValues: string[] } | { key: string; error: string };
 
 type ListKind = "tools" | "prompts" | "resources";
 const ALL_KINDS: ListKind[] = ["tools", "prompts", "resources"];
@@ -107,15 +106,11 @@ export async function collectPages<T>(fetchPage: (cursor?: string) => Promise<{ 
   return all;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error(`timed out after ${ms / 1000}s`)), ms).unref();
   });
   return Promise.race([promise, timeout]);
-}
-
-export async function connectClient(client: Client, transport: Transport, timeoutMs: number) {
-  await withTimeout(client.connect(transport), timeoutMs);
 }
 
 async function closeUpstream(upstream: Upstream | undefined) {
@@ -233,7 +228,7 @@ export class Gateway {
       }
     };
     try {
-      await connectClient(client, transportFor(plan.spec, "inherit"), CONNECT_TIMEOUT_MS);
+      await withTimeout(client.connect(transportFor(plan.spec, "inherit")), CONNECT_TIMEOUT_MS);
     } catch (error) {
       this.fail(pending, redact(errorMessage(error), plan.secretValues));
       await client.close().catch(() => {});
@@ -330,7 +325,6 @@ export class Gateway {
     return [statusTool, ...upstreamTools];
   }
 
-  /** Upstream tools as the admin UI shows them: hidden ones included and marked. */
   async toolInfos(): Promise<ToolInfo[]> {
     return (await this.toolLists()).flatMap(({ server, tools }) =>
       tools.map((tool): ToolInfo => {

@@ -1,4 +1,3 @@
-/** What went wrong from the user's point of view; the HTTP layer maps it to a status code. */
 export type UserErrorKind = "invalid" | "notFound" | "conflict";
 
 /** A failure caused by the request or the config, with a message meant for the person who made it. */

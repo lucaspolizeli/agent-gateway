@@ -79,7 +79,6 @@ export function configPath(home: string): string {
   return join(home, "gateway.json");
 }
 
-/** Validates a config object: its shape, then every reference between servers, profiles and hidden tools. */
 export function parseConfig(raw: unknown): Config {
   const parsed = ConfigSchema.safeParse(raw);
   if (!parsed.success) {
@@ -116,7 +115,7 @@ export function parseConfig(raw: unknown): Config {
 export function loadConfig(home: string): Config {
   const path = configPath(home);
   if (!existsSync(path)) {
-    throw new Error(`No config at ${path}. Copy gateway.example.json to gateway.json.`);
+    throw new UserError("notFound", `No config at ${path}. Copy gateway.example.json to gateway.json.`);
   }
   let raw: unknown;
   try {
@@ -216,7 +215,6 @@ function interpolateRecord(record: Record<string, string>, secrets: Record<strin
   return Object.fromEntries(Object.entries(record).map(([k, v]) => [k, interpolate(v, secrets)]));
 }
 
-/** The spec with every `${VAR}` filled in. Throws on a missing secret. */
 export function interpolateSpec(spec: ServerSpec, secrets: Record<string, string>): ServerSpec {
   if (isStdio(spec)) {
     return {

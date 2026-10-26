@@ -1,5 +1,6 @@
 import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
+import { UserError } from "./errors.ts";
 
 export type LinkReport = { target: string; linked: string[]; removed: string[]; skipped: string[] };
 
@@ -12,7 +13,7 @@ export function collectSkills(skillsRoot: string, sets: string[]): Map<string, s
   for (const set of sets) {
     const setDir = join(skillsRoot, set);
     if (!existsSync(setDir)) {
-      throw new Error(`Skill set "${set}" has no folder at ${setDir}`);
+      throw new UserError("invalid", `Skill set "${set}" has no folder at ${setDir}`);
     }
     for (const entry of readdirSync(setDir, { withFileTypes: true })) {
       if (entry.isDirectory() && existsSync(join(setDir, entry.name, "SKILL.md"))) {

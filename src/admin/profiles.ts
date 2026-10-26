@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { type Config, loadSecrets, missingSecrets, resolveProfile, type ServerSpec } from "../config.ts";
 import { errorMessage } from "../errors.ts";
-import { collectPages, connectClient, type Gateway, planConnection, redact, transportFor } from "../gateway.ts";
+import { collectPages, type Gateway, planConnection, redact, transportFor, withTimeout } from "../gateway.ts";
 import type { ProfileStatus, ResolvedProfileView, ServerTestResult } from "./contract.ts";
 
 const TEST_TIMEOUT_MS = 20_000;
@@ -39,7 +39,6 @@ export async function profileStatus(
   return { profile, running: true, upstreams, tools };
 }
 
-/** Connects a throwaway client, lists its tools and closes it, whatever happens. */
 export async function testServer(
   home: string,
   config: Config,
@@ -64,7 +63,7 @@ export async function testServer(
     });
   }
   try {
-    await connectClient(client, transport, TEST_TIMEOUT_MS);
+    await withTimeout(client.connect(transport), TEST_TIMEOUT_MS);
     const tools = await collectPages(async (cursor) => {
       const page = await client.listTools({ cursor }, { timeout: TEST_TIMEOUT_MS });
       return { items: page.tools, nextCursor: page.nextCursor };

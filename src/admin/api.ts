@@ -47,7 +47,6 @@ const directory = z
   .refine(isAbsolute, "must be an absolute path")
   .refine((dir) => existsSync(dir) && statSync(dir).isDirectory(), "must be an existing folder");
 
-/** Path params and body are parsed with the given schemas before the handler runs. */
 function route<P, B>(
   method: Method,
   path: string,
@@ -109,7 +108,6 @@ function routes({ home, port, pool }: AdminContext): Route[] {
 
     route("GET", "/api/profiles/:name/status", { params: profileParam, body: noBody }, async ({ params, query }) => {
       const current = config();
-      profileView(home, current, params.name);
       let gateway = pool.running(params.name);
       if (!gateway && query.get("start") === "1") {
         gateway = await pool.start(params.name);
@@ -274,7 +272,6 @@ function decodeSegments(pathname: string): string[] | undefined {
   }
 }
 
-/** Handles every `/api/*` request: token check, route lookup, then JSON in and out. */
 export function createAdminApi(context: AdminContext) {
   const table = routes(context);
   return async (req: IncomingMessage, res: ServerResponse, url: URL) => {
