@@ -1,9 +1,10 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { promisify } from "node:util";
 import { parse } from "smol-toml";
-import { PROJECT_CONFIG_FILES, registerAll, unregisterAll, type ClientResult, type Endpoint } from "./clients.ts";
+import { COMMAND_TIMEOUT_MS, PROJECT_CONFIG_FILES, registerAll, unregisterAll, type ClientResult, type Endpoint } from "./clients.ts";
 import { loadConfig, resolveProfile } from "./config.ts";
 import { errorMessage } from "./errors.ts";
 import { collectSkills, GLOBAL_SET, linkSkills, type LinkReport } from "./skills.ts";
@@ -48,11 +49,12 @@ export function endpointFor(home: string, profile: string, transport: Transport,
   return { kind: "stdio", command: join(home, "bin", "agw"), args: ["stdio", profile] };
 }
 
-function git(dir: string, args: string[]): string | undefined {
+const execFileAsync = promisify(execFile);
+
+async function git(dir: string, args: string[]): Promise<string | undefined> {
   try {
-    return execFileSync("git", ["-C", dir, ...args], { stdio: ["ignore", "pipe", "ignore"] })
-      .toString()
-      .trim();
+    const { stdout } = await execFileAsync("git", ["-C", dir, ...args], { timeout: COMMAND_TIMEOUT_MS });
+    return stdout.trim();
   } catch {
     return undefined;
   }
@@ -62,12 +64,12 @@ function git(dir: string, args: string[]): string | undefined {
  * Keeps the generated files out of `git status` through `.git/info/exclude`, which is local
  * to this clone, so company repositories never see personal tooling.
  */
-function writeGitExclude(dir: string, paths: string[]) {
-  const excludeFile = git(dir, ["rev-parse", "--git-path", "info/exclude"]);
+async function writeGitExclude(dir: string, paths: string[]) {
+  const excludeFile = await git(dir, ["rev-parse", "--git-path", "info/exclude"]);
   if (excludeFile === undefined) {
     return;
   }
-  const prefix = git(dir, ["rev-parse", "--show-prefix"]) ?? "";
+  const prefix = (await git(dir, ["rev-parse", "--show-prefix"])) ?? "";
   const path = resolve(dir, excludeFile);
   const start = `# agent-gateway:${prefix || "/"}:start`;
   const end = `# agent-gateway:${prefix || "/"}:end`;
@@ -108,7 +110,7 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function linkProjectSkills(home: string, dir: string, profileName: string): LinkReport[] {
+async function linkProjectSkills(home: string, dir: string, profileName: string): Promise<LinkReport[]> {
   const profile = resolveProfile(loadConfig(home), profileName);
   const sets = profile.skillSets.filter((set) => set !== GLOBAL_SET);
   const skills = collectSkills(join(home, "skills"), sets);
@@ -120,33 +122,33 @@ function linkProjectSkills(home: string, dir: string, profileName: string): Link
       excluded.push(`${sub}/${name}`);
     }
   }
-  writeGitExclude(dir, excluded);
+  await writeGitExclude(dir, excluded);
   return reports;
 }
 
-function applyProject(home: string, dir: string, binding: Binding, port: number): ApplyReport {
-  const skills = linkProjectSkills(home, dir, binding.profile);
-  const clients = registerAll(endpointFor(home, binding.profile, binding.transport, port), { kind: "project", dir });
+async function applyProject(home: string, dir: string, binding: Binding, port: number): Promise<ApplyReport> {
+  const skills = await linkProjectSkills(home, dir, binding.profile);
+  const clients = await registerAll(endpointFor(home, binding.profile, binding.transport, port), { kind: "project", dir });
   return { dir, profile: binding.profile, clients, skills };
 }
 
-export function installProject(home: string, dir: string, binding: Binding, port: number): ApplyReport {
+export async function installProject(home: string, dir: string, binding: Binding, port: number): Promise<ApplyReport> {
   const absolute = resolve(dir);
-  const report = applyProject(home, absolute, binding, port);
+  const report = await applyProject(home, absolute, binding, port);
   const state = readState(home);
   state.projects[absolute] = binding;
   writeState(home, state);
   return report;
 }
 
-export function uninstallProject(home: string, dir: string) {
+export async function uninstallProject(home: string, dir: string) {
   const absolute = resolve(dir);
   const skills = PROJECT_SKILL_DIRS.map((sub) => linkSkills(join(absolute, sub), new Map(), join(home, "skills")));
-  const clients = unregisterAll({ kind: "project", dir: absolute });
+  const clients = await unregisterAll({ kind: "project", dir: absolute });
   for (const file of PROJECT_CONFIG_FILES) {
     removeIfEmptyToml(join(absolute, file));
   }
-  writeGitExclude(absolute, []);
+  await writeGitExclude(absolute, []);
   const state = readState(home);
   delete state.projects[absolute];
   writeState(home, state);
@@ -162,14 +164,14 @@ export function linkGlobalSkills(home: string): LinkReport[] {
   return userSkillDirs().map((target) => linkSkills(target, skills, skillsRoot));
 }
 
-export function installGlobal(home: string, transport: Transport, port: number) {
+export async function installGlobal(home: string, transport: Transport, port: number) {
   resolveProfile(loadConfig(home), GLOBAL_SET);
-  const clients = registerAll(endpointFor(home, GLOBAL_SET, transport, port), { kind: "user" });
+  const clients = await registerAll(endpointFor(home, GLOBAL_SET, transport, port), { kind: "user" });
   return { clients, skills: linkGlobalSkills(home) };
 }
 
 /** Re-applies skills and gateway entries for every installed project, after edits to the hub. */
-export function syncAll(home: string, port: number) {
+export async function syncAll(home: string, port: number) {
   const projects: ApplyReport[] = [];
   const missing: string[] = [];
   for (const [dir, binding] of Object.entries(readState(home).projects)) {
@@ -177,7 +179,7 @@ export function syncAll(home: string, port: number) {
       missing.push(dir);
       continue;
     }
-    projects.push(applyProject(home, dir, binding, port));
+    projects.push(await applyProject(home, dir, binding, port));
   }
   return { global: linkGlobalSkills(home), projects, missing };
 }
@@ -187,7 +189,7 @@ export function syncAll(home: string, port: number) {
  * into every installed project. Client registrations are left alone. A project that fails is logged
  * and skipped so one broken profile does not block the rest.
  */
-export function relinkSkills(home: string, changedSets: string[]) {
+export async function relinkSkills(home: string, changedSets: string[]) {
   if (changedSets.includes(GLOBAL_SET)) {
     linkGlobalSkills(home);
   }
@@ -199,7 +201,7 @@ export function relinkSkills(home: string, changedSets: string[]) {
       continue;
     }
     try {
-      linkProjectSkills(home, dir, binding.profile);
+      await linkProjectSkills(home, dir, binding.profile);
     } catch (error) {
       process.stderr.write(`[agent-gateway] relinking skills in ${dir}: ${errorMessage(error)}\n`);
     }

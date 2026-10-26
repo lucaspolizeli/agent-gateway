@@ -113,26 +113,26 @@ const commands: Record<string, Command> = {
     console.log(`  skill sets: ${profile.skillSets.join(", ") || "(none)"}`);
     await gateway.close();
   },
-  install: (rest) => {
-    const report = installProject(home, rest[1] ?? process.cwd(), { profile: requireArg(rest[0], "profile"), transport }, port);
+  install: async (rest) => {
+    const report = await installProject(home, rest[1] ?? process.cwd(), { profile: requireArg(rest[0], "profile"), transport }, port);
     console.log(`Installed profile ${report.profile} in ${report.dir}`);
     printClients(report.clients);
     printSkills(report.skills);
   },
-  uninstall: (rest) => {
-    const report = uninstallProject(home, rest[0] ?? process.cwd());
+  uninstall: async (rest) => {
+    const report = await uninstallProject(home, rest[0] ?? process.cwd());
     console.log(`Uninstalled ${report.dir}`);
     printClients(report.clients);
     printSkills(report.skills);
   },
-  global: () => {
-    const report = installGlobal(home, transport, port);
+  global: async () => {
+    const report = await installGlobal(home, transport, port);
     console.log("Installed profile global at user level");
     printClients(report.clients);
     printSkills(report.skills);
   },
-  sync: () => {
-    const report = syncAll(home, port);
+  sync: async () => {
+    const report = await syncAll(home, port);
     console.log("Global skills");
     printSkills(report.global);
     for (const project of report.projects) {

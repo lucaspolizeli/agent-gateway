@@ -166,9 +166,9 @@ function routes({ home, port, pool }: AdminContext): Route[] {
       "POST",
       "/api/skills/import",
       { params: noParams, body: z.object({ path: z.string(), toSet: slug }).strict() },
-      ({ body }) => {
+      async ({ body }) => {
         importSkill(home, body.path, body.toSet);
-        relinkSkills(home, [body.toSet]);
+        await relinkSkills(home, [body.toSet]);
         return skillSets();
       },
     ),
@@ -181,9 +181,9 @@ function routes({ home, port, pool }: AdminContext): Route[] {
       "PUT",
       "/api/skills/:set/:name",
       { params: skillParams, body: z.object({ content: z.string() }).strict() },
-      ({ params, body }) => {
+      async ({ params, body }) => {
         if (writeSkill(home, params.set, params.name, body.content)) {
-          relinkSkills(home, [params.set]);
+          await relinkSkills(home, [params.set]);
         }
         return readSkill(home, params.set, params.name);
       },
@@ -193,16 +193,16 @@ function routes({ home, port, pool }: AdminContext): Route[] {
       "POST",
       "/api/skills/:set/:name/move",
       { params: skillParams, body: z.object({ toSet: slug }).strict() },
-      ({ params, body }) => {
+      async ({ params, body }) => {
         moveSkill(home, params.set, params.name, body.toSet);
-        relinkSkills(home, [params.set, body.toSet]);
+        await relinkSkills(home, [params.set, body.toSet]);
         return skillSets();
       },
     ),
 
-    route("DELETE", "/api/skills/:set/:name", { params: skillParams, body: noBody }, ({ params }) => {
+    route("DELETE", "/api/skills/:set/:name", { params: skillParams, body: noBody }, async ({ params }) => {
       deleteSkill(home, params.set, params.name);
-      relinkSkills(home, [params.set]);
+      await relinkSkills(home, [params.set]);
       return skillSets();
     }),
 
@@ -219,17 +219,17 @@ function routes({ home, port, pool }: AdminContext): Route[] {
         params: noParams,
         body: z.object({ dir: directory, profile: slug, transport: z.enum(["stdio", "http"]) }).strict(),
       },
-      ({ body }) => toApplyResult(installProject(home, body.dir, { profile: body.profile, transport: body.transport }, port)),
+      async ({ body }) => toApplyResult(await installProject(home, body.dir, { profile: body.profile, transport: body.transport }, port)),
     ),
 
-    route("DELETE", "/api/projects", { params: noParams, body: z.object({ dir: z.string() }).strict() }, ({ body }) => {
+    route("DELETE", "/api/projects", { params: noParams, body: z.object({ dir: z.string() }).strict() }, async ({ body }) => {
       if (!(body.dir in listProjects(home))) {
         throw new UserError("notFound", `${body.dir} is not an installed project`);
       }
       return uninstallProject(home, body.dir);
     }),
 
-    route("POST", "/api/sync", { params: noParams, body: noBody }, () => syncAll(home, port).projects.map(toApplyResult)),
+    route("POST", "/api/sync", { params: noParams, body: noBody }, async () => (await syncAll(home, port)).projects.map(toApplyResult)),
   ];
 }
 
