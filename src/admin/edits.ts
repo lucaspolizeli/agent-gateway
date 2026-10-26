@@ -94,7 +94,7 @@ const ops: { [Op in ConfigEdit["op"]]: Apply<Op> } = {
       throw new UserError("conflict", `Profile "${name}" is extended by ${children.join(", ")}`);
     }
     if (installedProfiles.has(name)) {
-      throw new UserError("conflict", `Profile "${name}" is installed in a project; uninstall it there first`);
+      throw new UserError("conflict", `Profile "${name}" is installed at user level or in a project; uninstall it first`);
     }
     delete config.profiles[name];
   },

@@ -112,7 +112,7 @@ function unregisterGrok(scope: Scope, timing: Timing): Promise<ClientResult> {
   });
 }
 
-function codexConfigPath(scope: Scope): string {
+export function codexConfigPath(scope: Scope): string {
   if (scope.kind === "project") {
     return join(scope.dir, ".codex", "config.toml");
   }

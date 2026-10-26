@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -15,7 +15,7 @@ import {
 import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { after, before, test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -29,6 +29,7 @@ const echo = (label: string) => ({ command: process.execPath, args: [fixture], e
 let home: string;
 let userHome: string;
 let project: string;
+let fakeBin: string;
 let port: number;
 let token: string;
 let serve: ChildProcess;
@@ -94,6 +95,13 @@ function toolsChangedUntil(predicate: (names: string[]) => boolean): Promise<str
   });
 }
 
+function agw(args: string[]) {
+  return spawnSync(join(repo, "bin", "agw"), args, {
+    env: { ...process.env, AGW_HOME: home, HOME: userHome, AGW_NODE: process.execPath, PATH: `${fakeBin}:${process.env.PATH}` },
+    encoding: "utf8",
+  });
+}
+
 function makeSkill(dir: string, name: string) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: ${name} things\n---\nBody\n`);
@@ -105,6 +113,7 @@ before(async () => {
   userHome = join(base, "user");
   project = join(base, "project");
   const bin = join(base, "bin");
+  fakeBin = bin;
   for (const dir of [home, userHome, project, bin]) {
     mkdirSync(dir, { recursive: true });
   }
@@ -363,6 +372,43 @@ test("the UI is served with the token, or a build hint when missing", async () =
   const root = await call("GET", "/");
   assert.equal(root.status, 302);
   assert.equal(root.headers.location, "/ui/");
+});
+
+test("the home folder, or a folder that is the home through a symlink, cannot be a project", async () => {
+  await api("PUT", "/api/skills/global/guard", { content: "---\nname: guard\ndescription: guard things\n---\nBody\n" });
+  const userLink = join(userHome, ".claude", "skills", "guard");
+  const hubSkill = join(home, "skills", "global", "guard");
+  assert.equal(readlinkSync(userLink), hubSkill);
+
+  const alias = join(dirname(userHome), "alias-of-home");
+  symlinkSync(userHome, alias);
+  const before = await api("GET", "/api/projects");
+  for (const dir of [userHome, alias]) {
+    const reply = await call("POST", "/api/projects", { body: { dir, profile: "work", transport: "stdio" } });
+    assert.equal(reply.status, 400, reply.text);
+    assert.match(reply.text, /home folder/);
+  }
+  const viaCli = agw(["install", "work", userHome]);
+  assert.notEqual(viaCli.status, 0);
+  assert.match(viaCli.stderr, /home folder/);
+
+  assert.equal(readlinkSync(userLink), hubSkill, "the user-level skill link survives");
+  assert.equal(existsSync(join(userHome, ".codex", "config.toml")), false);
+  assert.deepEqual(await api("GET", "/api/projects"), before);
+});
+
+test("a profile used by the user-level install cannot be removed", async () => {
+  const installed = agw(["global"]);
+  assert.equal(installed.status, 0, installed.stderr);
+  await api("POST", "/api/config/edits", {
+    op: "upsertProfile",
+    name: "work",
+    profile: { extends: [], servers: ["alpha", "beta"], skills: ["globex"] },
+  });
+  const removal = await call("POST", "/api/config/edits", { body: { op: "removeProfile", name: "global" } });
+  assert.equal(removal.status, 409, removal.text);
+  assert.match(removal.text, /installed/);
+  assert.ok("global" in (await api<{ profiles: object }>("GET", "/api/config")).profiles);
 });
 
 function isLink(path: string): boolean {

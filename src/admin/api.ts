@@ -5,7 +5,7 @@ import { z } from "zod";
 import { loadConfig, ServerSchema, slug, writeConfig } from "../config.ts";
 import { errorMessage, UserError, type UserErrorKind } from "../errors.ts";
 import type { GatewayPool } from "../pool.ts";
-import { installProject, listProjects, relinkSkills, syncAll, uninstallProject } from "../project.ts";
+import { installedProfiles, installProject, listProjects, relinkSkills, syncAll, uninstallProject, unsafeProjectDir } from "../project.ts";
 import type { ApiError, ProjectApplyResult, ProjectView } from "./contract.ts";
 import { applyEdit, ConfigEditSchema } from "./edits.ts";
 import { profileStatus, profileView, testServer } from "./profiles.ts";
@@ -45,7 +45,13 @@ const secretParams = z.object({ profile: slug, key: z.string().regex(SECRET_KEY,
 const directory = z
   .string()
   .refine(isAbsolute, "must be an absolute path")
-  .refine((dir) => existsSync(dir) && statSync(dir).isDirectory(), "must be an existing folder");
+  .refine((dir) => existsSync(dir) && statSync(dir).isDirectory(), "must be an existing folder")
+  .superRefine((dir, ctx) => {
+    const problem = unsafeProjectDir(dir);
+    if (problem !== undefined) {
+      ctx.addIssue({ code: "custom", message: problem });
+    }
+  });
 
 function route<P, B>(
   method: Method,
@@ -89,13 +95,12 @@ function requireProfile(home: string, name: string) {
 function routes({ home, port, pool }: AdminContext): Route[] {
   const config = () => loadConfig(home);
   const skillSets = () => listSkillSets(home, config());
-  const installedProfiles = () => new Set(Object.values(listProjects(home)).map((binding) => binding.profile));
 
   return [
     route("GET", "/api/config", { params: noParams, body: noBody }, () => config()),
 
     route("POST", "/api/config/edits", { params: noParams, body: ConfigEditSchema }, ({ body }) => {
-      const next = applyEdit(config(), body, installedProfiles());
+      const next = applyEdit(config(), body, installedProfiles(home));
       writeConfig(home, next);
       pool.reload(next).catch((error: unknown) => process.stderr.write(`[agent-gateway] reload: ${errorMessage(error)}\n`));
       return next;

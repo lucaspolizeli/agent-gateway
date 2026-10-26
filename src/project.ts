@@ -1,17 +1,18 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { parse } from "smol-toml";
-import { COMMAND_TIMEOUT_MS, PROJECT_CONFIG_FILES, registerAll, unregisterAll, type ClientResult, type Endpoint } from "./clients.ts";
+import { codexConfigPath, COMMAND_TIMEOUT_MS, PROJECT_CONFIG_FILES, registerAll, unregisterAll, type ClientResult, type Endpoint } from "./clients.ts";
 import { loadConfig, resolveProfile } from "./config.ts";
-import { errorMessage } from "./errors.ts";
+import { errorMessage, UserError } from "./errors.ts";
 import { collectSkills, GLOBAL_SET, linkSkills, type LinkReport } from "./skills.ts";
 
 export type Transport = "stdio" | "http";
 type Binding = { profile: string; transport: Transport };
-type State = { projects: Record<string, Binding> };
+/** `global` records the user-level install, so the profile it uses counts as installed. */
+type State = { projects: Record<string, Binding>; global?: Binding };
 
 /** Skill folders read by each client: Claude Code and Grok read `.claude/skills`, Codex reads `.agents/skills`. */
 const PROJECT_SKILL_DIRS = [".claude/skills", ".agents/skills"];
@@ -22,6 +23,45 @@ export function userSkillDirs(): string[] {
 }
 
 export const DEFAULT_PORT = 7820;
+
+/** Follows symlinks as far as the path exists, so a folder that is not created yet still compares by its real location. */
+function realLocation(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    const parent = dirname(path);
+    if (parent === path) {
+      return path;
+    }
+    return join(realLocation(parent), basename(path));
+  }
+}
+
+/**
+ * Why `dir` cannot be a project, or undefined when it can. Installing into the home folder, or a
+ * folder that reaches the user-level skill folders or Codex config through a symlink, would prune
+ * the user's global skill links and rewrite `~/.codex/config.toml`.
+ */
+export function unsafeProjectDir(dir: string): string | undefined {
+  const absolute = resolve(dir);
+  if (realLocation(absolute) === realLocation(homedir())) {
+    return "the home folder is not a project: it holds the user-level skills and client config";
+  }
+  const userPaths = new Set([...userSkillDirs(), codexConfigPath({ kind: "user" })].map(realLocation));
+  const projectPaths = [...PROJECT_SKILL_DIRS.map((sub) => join(absolute, sub)), codexConfigPath({ kind: "project", dir: absolute })];
+  const shared = projectPaths.find((path) => userPaths.has(realLocation(path)));
+  if (shared !== undefined) {
+    return `${shared} is the same location as a user-level skill folder or client config`;
+  }
+  return undefined;
+}
+
+function requireSafeProjectDir(dir: string) {
+  const problem = unsafeProjectDir(dir);
+  if (problem !== undefined) {
+    throw new UserError("invalid", `${resolve(dir)}: ${problem}`);
+  }
+}
 
 export type ApplyReport = { dir: string; profile: string; clients: ClientResult[]; skills: LinkReport[] };
 
@@ -133,6 +173,7 @@ async function applyProject(home: string, dir: string, binding: Binding, port: n
 }
 
 export async function installProject(home: string, dir: string, binding: Binding, port: number): Promise<ApplyReport> {
+  requireSafeProjectDir(dir);
   const absolute = resolve(dir);
   const report = await applyProject(home, absolute, binding, port);
   const state = readState(home);
@@ -143,6 +184,13 @@ export async function installProject(home: string, dir: string, binding: Binding
 
 export async function uninstallProject(home: string, dir: string) {
   const absolute = resolve(dir);
+  if (unsafeProjectDir(absolute) !== undefined) {
+    // Cleaning it up would touch the user-level setup; only the stale record is dropped.
+    const state = readState(home);
+    delete state.projects[absolute];
+    writeState(home, state);
+    return { dir: absolute, clients: [], skills: [] };
+  }
   const skills = PROJECT_SKILL_DIRS.map((sub) => linkSkills(join(absolute, sub), new Map(), join(home, "skills")));
   const clients = await unregisterAll({ kind: "project", dir: absolute });
   for (const file of PROJECT_CONFIG_FILES) {
@@ -167,6 +215,9 @@ export function linkGlobalSkills(home: string): LinkReport[] {
 export async function installGlobal(home: string, transport: Transport, port: number) {
   resolveProfile(loadConfig(home), GLOBAL_SET);
   const clients = await registerAll(endpointFor(home, GLOBAL_SET, transport, port), { kind: "user" });
+  const state = readState(home);
+  state.global = { profile: GLOBAL_SET, transport };
+  writeState(home, state);
   return { clients, skills: linkGlobalSkills(home) };
 }
 
@@ -174,14 +225,20 @@ export async function installGlobal(home: string, transport: Transport, port: nu
 export async function syncAll(home: string, port: number) {
   const projects: ApplyReport[] = [];
   const missing: string[] = [];
+  const unsafe: Array<{ dir: string; reason: string }> = [];
   for (const [dir, binding] of Object.entries(readState(home).projects)) {
     if (!existsSync(dir)) {
       missing.push(dir);
       continue;
     }
+    const reason = unsafeProjectDir(dir);
+    if (reason !== undefined) {
+      unsafe.push({ dir, reason });
+      continue;
+    }
     projects.push(await applyProject(home, dir, binding, port));
   }
-  return { global: linkGlobalSkills(home), projects, missing };
+  return { global: linkGlobalSkills(home), projects, missing, unsafe };
 }
 
 /**
@@ -197,7 +254,7 @@ export async function relinkSkills(home: string, changedSets: string[]) {
     return;
   }
   for (const [dir, binding] of Object.entries(readState(home).projects)) {
-    if (!existsSync(dir)) {
+    if (!existsSync(dir) || unsafeProjectDir(dir) !== undefined) {
       continue;
     }
     try {
@@ -210,4 +267,14 @@ export async function relinkSkills(home: string, changedSets: string[]) {
 
 export function listProjects(home: string) {
   return readState(home).projects;
+}
+
+/** Profiles that a project or the user-level install uses. */
+export function installedProfiles(home: string): Set<string> {
+  const state = readState(home);
+  const bindings = Object.values(state.projects);
+  if (state.global) {
+    bindings.push(state.global);
+  }
+  return new Set(bindings.map((binding) => binding.profile));
 }

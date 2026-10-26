@@ -59,7 +59,7 @@ test("upsertProfile is validated against servers, parents and cycles", () => {
 
 test("removeProfile is refused while a child extends it or a project uses it", () => {
   rejects("conflict", /extended by globex/, () => applyEdit(config, { op: "removeProfile", name: "global" }, none));
-  rejects("conflict", /installed in a project/, () => applyEdit(config, { op: "removeProfile", name: "globex" }, new Set(["globex"])));
+  rejects("conflict", /installed at user level or in a project/, () => applyEdit(config, { op: "removeProfile", name: "globex" }, new Set(["globex"])));
   const next = applyEdit(config, { op: "removeProfile", name: "globex" }, none);
   assert.deepEqual(Object.keys(next.profiles), ["global"]);
 });

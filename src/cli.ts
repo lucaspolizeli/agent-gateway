@@ -143,6 +143,9 @@ const commands: Record<string, Command> = {
     for (const dir of report.missing) {
       console.log(`${dir}: folder is gone, run "agw uninstall ${dir}" to forget it`);
     }
+    for (const { dir, reason } of report.unsafe) {
+      console.log(`${dir}: skipped, ${reason}; run "agw uninstall ${dir}" to forget it`);
+    }
   },
   ui: async () => {
     const url = `http://127.0.0.1:${port}/ui/`;
