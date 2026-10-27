@@ -17,7 +17,11 @@ function xml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function launchAgentPlist(home: string, port: number): string {
+/**
+ * launchd starts agents with a bare PATH, so the upstream commands (`npx`, `uv`, `node`) would not be found.
+ * The agent gets the PATH of the shell that installed it.
+ */
+export function launchAgentPlist(home: string, port: number, path: string): string {
   const args = [join(home, "bin", "agw"), "serve", "--port", String(port)];
   const log = xml(serviceLogPath(home));
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -34,6 +38,8 @@ ${args.map((arg) => `    <string>${xml(arg)}</string>`).join("\n")}
   <dict>
     <key>AGW_HOME</key>
     <string>${xml(home)}</string>
+    <key>PATH</key>
+    <string>${xml(path)}</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
@@ -52,11 +58,25 @@ function domain(): string {
   return `gui/${process.getuid!()}`;
 }
 
+function isLoaded(): boolean {
+  try {
+    execFileSync("launchctl", ["print", `${domain()}/${SERVICE_LABEL}`], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** `bootout` returns before the agent is gone, and a `bootstrap` in that window fails with error 5. */
 function bootout() {
   try {
     execFileSync("launchctl", ["bootout", `${domain()}/${SERVICE_LABEL}`], { stdio: "ignore" });
   } catch {
     // Not loaded.
+  }
+  const deadline = Date.now() + 10_000;
+  while (isLoaded() && Date.now() < deadline) {
+    execFileSync("sleep", ["0.2"]);
   }
 }
 
@@ -65,7 +85,7 @@ export function installService(home: string, port: number): string {
   const path = launchAgentPath();
   mkdirSync(dirname(path), { recursive: true });
   mkdirSync(dirname(serviceLogPath(home)), { recursive: true });
-  writeFileSync(path, launchAgentPlist(home, port));
+  writeFileSync(path, launchAgentPlist(home, port, process.env.PATH ?? "/usr/bin:/bin"));
   bootout();
   execFileSync("launchctl", ["bootstrap", domain(), path], { stdio: ["ignore", "pipe", "pipe"] });
   return path;
