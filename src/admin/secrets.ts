@@ -21,18 +21,21 @@ function read(home: string, profile: string): Record<string, string> {
  * backticks are taken literally; each candidate is checked against the parser itself.
  */
 export function formatEnvLine(key: string, value: string): string {
+  if (value.includes("\r")) {
+    throw new UserError("invalid", `O valor de ${key} não pode ser salvo: retorno de carro (CR, \\r) não é suportado`);
+  }
   for (const quote of ["'", "`", '"']) {
     const line = `${key}=${quote}${value}${quote}`;
     if (!value.includes(quote) && parseEnv(line)[key] === value) {
       return line;
     }
   }
-  throw new UserError("invalid", `The value of ${key} cannot be stored: it contains ', " and \` together`);
+  throw new UserError("invalid", `O valor de ${key} não pode ser salvo: contém ', " e \` ao mesmo tempo`);
 }
 
 function write(home: string, profile: string, secrets: Record<string, string>) {
   const lines = Object.entries(secrets).map(([key, value]) => formatEnvLine(key, value));
-  writeFileAtomic(secretsPath(home, profile), lines.map((line) => `${line}\n`).join(""));
+  writeFileAtomic(secretsPath(home, profile), lines.map((line) => `${line}\n`).join(""), { mode: 0o600, keepExistingMode: false });
 }
 
 function view(home: string, profile: string): SecretsView {

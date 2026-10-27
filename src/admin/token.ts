@@ -34,7 +34,7 @@ export function ensureAdminToken(home: string): string {
   }
   rmSync(path, { force: true });
   const token = randomBytes(32).toString("hex");
-  writeFileAtomic(path, `${token}\n`, 0o600);
+  writeFileAtomic(path, `${token}\n`, { mode: 0o600 });
   return token;
 }
 

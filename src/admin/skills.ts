@@ -122,7 +122,7 @@ export function writeSkill(home: string, set: string, name: string, content: str
   }
   const dir = skillDir(home, set, name);
   const created = !existsSync(join(dir, SKILL_FILE));
-  writeFileAtomic(join(dir, SKILL_FILE), content, 0o644);
+  writeFileAtomic(join(dir, SKILL_FILE), content, { mode: 0o644 });
   return created;
 }
 

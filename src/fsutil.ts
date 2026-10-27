@@ -10,15 +10,22 @@ function realTarget(path: string): string | undefined {
   }
 }
 
+export type WriteOptions = {
+  /** Mode of a new file, and of an existing one when `keepExistingMode` is false. */
+  mode?: number;
+  /** An existing file keeps the mode the user gave it. False forces `mode` onto it, for files that hold secrets. */
+  keepExistingMode?: boolean;
+};
+
 /**
  * Readers see the old file or the new one, never a half-written one. A symlinked `path` keeps
- * pointing at its target, and an existing file keeps its mode; `defaultMode` applies to a new file.
+ * pointing at its target.
  */
-export function writeFileAtomic(path: string, content: string, defaultMode = 0o600) {
+export function writeFileAtomic(path: string, content: string, { mode: defaultMode = 0o600, keepExistingMode = true }: WriteOptions = {}) {
   const existing = realTarget(path);
   const target = existing ?? path;
   let mode = defaultMode;
-  if (existing !== undefined) {
+  if (existing !== undefined && keepExistingMode) {
     mode = statSync(existing).mode & 0o7777;
   }
   mkdirSync(dirname(target), { recursive: true });
