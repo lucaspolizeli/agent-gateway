@@ -16,6 +16,7 @@ import {
   syncAll,
   type Transport,
   uninstallProject,
+  unsafeProjectDir,
 } from "./project.ts";
 import { installService, serviceLogPath, uninstallService } from "./service.ts";
 import type { LinkReport } from "./skills.ts";
@@ -59,6 +60,19 @@ function printClients(results: ClientResult[]) {
       mark = "FAIL";
     }
     console.log(`  ${mark} ${result.client}: ${result.detail}`);
+  }
+}
+
+/** The last line of a command that touches clients; a failed client or project also makes the exit code non-zero. */
+function printSummary(results: ClientResult[], failedProjects = 0) {
+  const failed = results.filter((result) => !result.ok).length;
+  const parts = [`${results.length - failed} of ${results.length} clients ok`];
+  if (failedProjects > 0) {
+    parts.push(`${failedProjects} projects failed`);
+  }
+  console.log(`Summary: ${parts.join(", ")}`);
+  if (failed > 0 || failedProjects > 0) {
+    process.exitCode = 1;
   }
 }
 
@@ -119,24 +133,30 @@ const commands: Record<string, Command> = {
     console.log(`Installed profile ${report.profile} in ${report.dir}`);
     printClients(report.clients);
     printSkills(report.skills);
+    printSummary(report.clients);
   },
   uninstall: async (rest) => {
     const report = await uninstallProject(home, rest[0] ?? process.cwd());
     console.log(`Uninstalled ${report.dir}`);
     printClients(report.clients);
     printSkills(report.skills);
+    if (report.kept) {
+      console.log(`  ${report.dir} is still recorded because a client entry was not removed; fix the failure and run "agw uninstall ${report.dir}" again`);
+    }
+    printSummary(report.clients);
   },
   global: async () => {
     const report = await installGlobal(home, transport, port);
     console.log("Installed profile global at user level");
     printClients(report.clients);
     printSkills(report.skills);
+    printSummary(report.clients);
   },
   sync: async () => {
     const report = await syncAll(home, port);
     console.log("Global skills");
     printSkills(report.global);
-    for (const project of report.projects) {
+    for (const project of report.applied) {
       console.log(`${project.dir} (${project.profile})`);
       printClients(project.clients);
       printSkills(project.skills);
@@ -144,9 +164,16 @@ const commands: Record<string, Command> = {
     for (const dir of report.missing) {
       console.log(`${dir}: folder is gone, run "agw uninstall ${dir}" to forget it`);
     }
-    for (const { dir, reason } of report.unsafe) {
-      console.log(`${dir}: skipped, ${reason}; run "agw uninstall ${dir}" to forget it`);
+    for (const dir of report.unsafe) {
+      console.log(`${dir}: skipped, ${unsafeProjectDir(dir)}; run "agw uninstall ${dir}" to forget it`);
     }
+    for (const { dir, error } of report.failed) {
+      console.log(`${dir}: FAIL ${error}`);
+    }
+    printSummary(
+      report.applied.flatMap((project) => project.clients),
+      report.failed.length,
+    );
   },
   ui: async () => {
     const url = `http://127.0.0.1:${port}/ui/`;

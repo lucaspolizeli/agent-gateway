@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readFileSync,
   readlinkSync,
+  rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
@@ -39,9 +40,20 @@ let mcp: Client;
 type Reply = { status: number; text: string; json: unknown; headers: Record<string, string | string[] | undefined> };
 
 function call(method: string, path: string, options: { body?: unknown; headers?: Record<string, string> } = {}): Promise<Reply> {
+  let payload: string | undefined;
+  if (typeof options.body === "string") {
+    payload = options.body;
+  } else if (options.body !== undefined) {
+    payload = JSON.stringify(options.body);
+  }
+  const headers: Record<string, string> = { "x-agw-token": token, "content-type": "application/json", ...options.headers };
+  if (payload !== undefined) {
+    // Node sends a DELETE body unframed unless the length is given.
+    headers["content-length"] = String(Buffer.byteLength(payload));
+  }
   return new Promise((resolve, reject) => {
     const req = httpRequest(
-      { host: "127.0.0.1", port, method, path, headers: { "x-agw-token": token, "content-type": "application/json", ...options.headers } },
+      { host: "127.0.0.1", port, method, path, headers },
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -58,10 +70,8 @@ function call(method: string, path: string, options: { body?: unknown; headers?:
       },
     );
     req.on("error", reject);
-    if (typeof options.body === "string") {
-      req.write(options.body);
-    } else if (options.body !== undefined) {
-      req.write(JSON.stringify(options.body));
+    if (payload !== undefined) {
+      req.write(payload);
     }
     req.end();
   });
@@ -420,11 +430,11 @@ test("the home folder, or a folder that is the home through a symlink, cannot be
   for (const dir of [userHome, alias]) {
     const reply = await call("POST", "/api/projects", { body: { dir, profile: "work", transport: "stdio" } });
     assert.equal(reply.status, 400, reply.text);
-    assert.match(reply.text, /home folder/);
+    assert.match(reply.text, /pasta home/);
   }
   const viaCli = agw(["install", "work", userHome]);
   assert.notEqual(viaCli.status, 0);
-  assert.match(viaCli.stderr, /home folder/);
+  assert.match(viaCli.stderr, /pasta home/);
 
   assert.equal(readlinkSync(userLink), hubSkill, "the user-level skill link survives");
   assert.equal(existsSync(join(userHome, ".codex", "config.toml")), false);
@@ -452,3 +462,50 @@ function isLink(path: string): boolean {
     return false;
   }
 }
+
+test("DELETE /api/projects accepts the folder the way POST does, with a trailing slash", async () => {
+  const dir = join(dirname(project), "slashed");
+  mkdirSync(dir);
+  await api("POST", "/api/projects", { dir, profile: "work", transport: "stdio" });
+
+  const removed = await call("DELETE", "/api/projects", { body: { dir: `${dir}/` } });
+  assert.equal(removed.status, 200, removed.text);
+  assert.equal((removed.json as { dir: string }).dir, dir);
+  assert.equal((await api<Array<{ dir: string }>>("GET", "/api/projects")).some((entry) => entry.dir === dir), false);
+});
+
+test("POST /api/sync returns every project in exactly one bucket", async () => {
+  const good = join(dirname(project), "sync-good");
+  const gone = join(dirname(project), "sync-gone");
+  const orphan = join(dirname(project), "sync-orphan");
+  for (const dir of [good, gone, orphan]) {
+    mkdirSync(dir);
+  }
+  await api("POST", "/api/config/edits", { op: "upsertProfile", name: "temp", profile: { extends: [], servers: [], skills: ["globex"] } });
+  await api("POST", "/api/projects", { dir: good, profile: "work", transport: "stdio" });
+  await api("POST", "/api/projects", { dir: gone, profile: "work", transport: "stdio" });
+  await api("POST", "/api/projects", { dir: orphan, profile: "temp", transport: "stdio" });
+  rmSync(gone, { recursive: true });
+  const state = join(home, "state", "projects.json");
+  const recorded = JSON.parse(readFileSync(state, "utf8")) as { projects: Record<string, unknown> };
+  recorded.projects[orphan] = { profile: "removed-profile", transport: "stdio" };
+  writeFileSync(state, JSON.stringify(recorded));
+
+  const result = await api<{
+    applied: Array<{ dir: string }>;
+    missing: string[];
+    unsafe: string[];
+    failed: Array<{ dir: string; error: string }>;
+  }>("POST", "/api/sync");
+
+  assert.deepEqual(result.applied.map((entry) => entry.dir).filter((dir) => dir === good), [good]);
+  assert.deepEqual(result.missing, [gone]);
+  assert.deepEqual(result.unsafe, []);
+  assert.equal(result.failed.length, 1);
+  assert.equal(result.failed[0]!.dir, orphan);
+  assert.match(result.failed[0]!.error, /removed-profile/);
+
+  for (const dir of [good, gone, orphan]) {
+    await call("DELETE", "/api/projects", { body: { dir } });
+  }
+});

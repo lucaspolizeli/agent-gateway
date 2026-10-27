@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { parse } from "smol-toml";
+import type { SyncResult } from "./admin/contract.ts";
 import { codexConfigPath, COMMAND_TIMEOUT_MS, PROJECT_CONFIG_FILES, registerAll, unregisterAll, type ClientResult, type Endpoint } from "./clients.ts";
 import { loadConfig, resolveProfile } from "./config.ts";
 import { errorMessage, UserError } from "./errors.ts";
@@ -45,21 +46,25 @@ function realLocation(path: string): string {
 export function unsafeProjectDir(dir: string): string | undefined {
   const absolute = resolve(dir);
   if (realLocation(absolute) === realLocation(homedir())) {
-    return "the home folder is not a project: it holds the user-level skills and client config";
+    return "a pasta home não pode ser um projeto: ela guarda as skills e a configuração dos clientes do usuário";
   }
   const userPaths = new Set([...userSkillDirs(), codexConfigPath({ kind: "user" })].map(realLocation));
   const projectPaths = [...PROJECT_SKILL_DIRS.map((sub) => join(absolute, sub)), codexConfigPath({ kind: "project", dir: absolute })];
   const shared = projectPaths.find((path) => userPaths.has(realLocation(path)));
   if (shared !== undefined) {
-    return `${shared} is the same location as a user-level skill folder or client config`;
+    return `${shared} é o mesmo local de uma pasta de skills ou configuração de cliente do usuário`;
   }
   return undefined;
 }
 
 function requireSafeProjectDir(dir: string) {
-  const problem = unsafeProjectDir(dir);
+  const absolute = resolve(dir);
+  if (!existsSync(absolute) || !statSync(absolute).isDirectory()) {
+    throw new UserError("invalid", `${absolute}: a pasta do projeto precisa existir`);
+  }
+  const problem = unsafeProjectDir(absolute);
   if (problem !== undefined) {
-    throw new UserError("invalid", `${resolve(dir)}: ${problem}`);
+    throw new UserError("invalid", `${absolute}: ${problem}`);
   }
 }
 
@@ -101,48 +106,99 @@ async function git(dir: string, args: string[]): Promise<string | undefined> {
 }
 
 /**
- * Keeps the generated files out of `git status` through `.git/info/exclude`, which is local
- * to this clone, so company repositories never see personal tooling.
+ * A gitignore pattern that matches `pattern` literally: its wildcards, a leading `#` or `!`, and trailing
+ * spaces, which git drops unless they are escaped, all lose their special meaning.
+ */
+export function escapeGitignore(pattern: string): string {
+  let escaped = pattern.replace(/[\\[\]*?]/g, "\\$&");
+  if (escaped.startsWith("#") || escaped.startsWith("!")) {
+    escaped = `\\${escaped}`;
+  }
+  return escaped.replace(/ +$/, (spaces) => spaces.replaceAll(" ", "\\ "));
+}
+
+/**
+ * Keeps the generated files out of `git status` through `info/exclude`, which is local to this
+ * clone, so company repositories never see personal tooling. In a linked worktree that file is the
+ * one every checkout of the repository shares, so each checkout owns a block named after its own
+ * folder and never touches the others'. Patterns in it are relative to the root of whichever checkout
+ * git is looking at, so a line for this checkout also covers the same path in a sibling checkout.
  */
 async function writeGitExclude(dir: string, paths: string[]) {
   const excludeFile = await git(dir, ["rev-parse", "--git-path", "info/exclude"]);
-  if (excludeFile === undefined) {
+  const toplevel = await git(dir, ["rev-parse", "--show-toplevel"]);
+  if (excludeFile === undefined || toplevel === undefined) {
     return;
   }
   const prefix = (await git(dir, ["rev-parse", "--show-prefix"])) ?? "";
   const path = resolve(dir, excludeFile);
-  const start = `# agent-gateway:${prefix || "/"}:start`;
-  const end = `# agent-gateway:${prefix || "/"}:end`;
+  const owner = resolve(toplevel, prefix);
+  const start = `# agent-gateway:${owner}:start`;
+  const end = `# agent-gateway:${owner}:end`;
   let content = "";
   if (existsSync(path)) {
     content = readFileSync(path, "utf8");
   }
   const blockPattern = new RegExp(`\\n?${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}\\n?`, "g");
   content = content.replace(blockPattern, "\n").replace(/\n+$/, "");
-  if (paths.length > 0) {
-    const lines = paths.map((p) => `/${prefix}${p}`);
+  const lines = paths.map((p) => escapeGitignore(`/${prefix}${p}`)).filter((line) => !line.includes("\n"));
+  if (lines.length > 0) {
     content = `${content}\n${start}\n${lines.join("\n")}\n${end}`;
   }
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content.replace(/^\n+/, "") + "\n");
 }
 
-/** Deletes a client config left with no settings once the gateway entry is gone, and its folder if empty. */
+/** Deletes a client config left with no settings once the gateway entry is gone, and its folder if empty. Comments keep a file alive. */
 function removeIfEmptyToml(path: string) {
   if (!existsSync(path)) {
     return;
   }
-  const config = parse(readFileSync(path, "utf8"));
+  const text = readFileSync(path, "utf8");
+  const config = parse(text);
   const servers = config.mcp_servers as Record<string, unknown> | undefined;
   if (servers && Object.keys(servers).length === 0) {
     delete config.mcp_servers;
   }
-  if (Object.keys(config).length > 0) {
+  if (Object.keys(config).length > 0 || /^\s*#/m.test(text)) {
     return;
   }
   rmSync(path);
   if (readdirSync(dirname(path)).length === 0) {
     rmSync(dirname(path), { recursive: true });
+  }
+}
+
+/** Reports a client whose config could not be tidied as failed, unless the client already failed for its own reason. */
+function tidyClientConfigs(dir: string, clients: ClientResult[]): ClientResult[] {
+  return clients.map((result) => {
+    const config = PROJECT_CONFIG_FILES.find(({ client }) => client === result.client);
+    if (config === undefined) {
+      return result;
+    }
+    const path = join(dir, config.file);
+    try {
+      removeIfEmptyToml(path);
+    } catch (error) {
+      if (result.ok) {
+        return { client: result.client, ok: false, detail: `${path}: ${errorMessage(error)}` };
+      }
+    }
+    return result;
+  });
+}
+
+/** Removes `.claude/skills`, `.agents/skills` and then their parents, each only when nothing is left in it. */
+function pruneEmptySkillDirs(dir: string) {
+  const folders = [...PROJECT_SKILL_DIRS.map((sub) => join(dir, sub)), ...new Set(PROJECT_SKILL_DIRS.map((sub) => join(dir, dirname(sub))))];
+  for (const folder of folders) {
+    try {
+      if (lstatSync(folder).isDirectory() && readdirSync(folder).length === 0) {
+        rmdirSync(folder);
+      }
+    } catch {
+      // Missing or no longer empty: leave it.
+    }
   }
 }
 
@@ -156,10 +212,13 @@ async function linkProjectSkills(home: string, dir: string, profileName: string)
   const skills = collectSkills(join(home, "skills"), sets);
   const reports = PROJECT_SKILL_DIRS.map((sub) => linkSkills(join(dir, sub), skills, join(home, "skills")));
 
-  const excluded = [...PROJECT_CONFIG_FILES];
-  for (const sub of PROJECT_SKILL_DIRS) {
+  const excluded = PROJECT_CONFIG_FILES.map(({ file }) => file);
+  for (const [index, sub] of PROJECT_SKILL_DIRS.entries()) {
+    const notOurs = new Set(reports[index]!.skipped);
     for (const name of skills.keys()) {
-      excluded.push(`${sub}/${name}`);
+      if (!notOurs.has(name)) {
+        excluded.push(`${sub}/${name}`);
+      }
     }
   }
   await writeGitExclude(dir, excluded);
@@ -182,25 +241,39 @@ export async function installProject(home: string, dir: string, binding: Binding
   return report;
 }
 
-export async function uninstallProject(home: string, dir: string) {
-  const absolute = resolve(dir);
-  if (unsafeProjectDir(absolute) !== undefined) {
-    // Cleaning it up would touch the user-level setup; only the stale record is dropped.
-    const state = readState(home);
-    delete state.projects[absolute];
-    writeState(home, state);
-    return { dir: absolute, clients: [], skills: [] };
-  }
-  const skills = PROJECT_SKILL_DIRS.map((sub) => linkSkills(join(absolute, sub), new Map(), join(home, "skills")));
-  const clients = await unregisterAll({ kind: "project", dir: absolute });
-  for (const file of PROJECT_CONFIG_FILES) {
-    removeIfEmptyToml(join(absolute, file));
-  }
-  await writeGitExclude(absolute, []);
+export type UninstallReport = Omit<ApplyReport, "profile"> & {
+  /** The record stays when a client entry could not be removed, so running the uninstall again can finish the job. */
+  kept: boolean;
+};
+
+function forget(home: string, dir: string) {
   const state = readState(home);
-  delete state.projects[absolute];
+  delete state.projects[dir];
   writeState(home, state);
-  return { dir: absolute, clients, skills };
+}
+
+export async function uninstallProject(home: string, dir: string): Promise<UninstallReport> {
+  const absolute = resolve(dir);
+  // Cleaning an unsafe or vanished folder would touch the user-level setup or recreate it; only the stale record is dropped.
+  if (unsafeProjectDir(absolute) !== undefined || !existsSync(absolute)) {
+    forget(home, absolute);
+    return { dir: absolute, clients: [], skills: [], kept: false };
+  }
+  const skills = PROJECT_SKILL_DIRS.map((sub): LinkReport => {
+    const target = join(absolute, sub);
+    if (!existsSync(target)) {
+      return { target, linked: [], removed: [], skipped: [] };
+    }
+    return linkSkills(target, new Map(), join(home, "skills"));
+  });
+  pruneEmptySkillDirs(absolute);
+  const clients = tidyClientConfigs(absolute, await unregisterAll({ kind: "project", dir: absolute }));
+  await writeGitExclude(absolute, []);
+  const kept = clients.some((result) => !result.ok);
+  if (!kept) {
+    forget(home, absolute);
+  }
+  return { dir: absolute, clients, skills, kept };
 }
 
 export function linkGlobalSkills(home: string): LinkReport[] {
@@ -221,24 +294,33 @@ export async function installGlobal(home: string, transport: Transport, port: nu
   return { clients, skills: linkGlobalSkills(home) };
 }
 
-/** Re-applies skills and gateway entries for every installed project, after edits to the hub. */
-export async function syncAll(home: string, port: number) {
-  const projects: ApplyReport[] = [];
-  const missing: string[] = [];
-  const unsafe: Array<{ dir: string; reason: string }> = [];
+export type SyncReport = Omit<SyncResult, "applied"> & { global: LinkReport[]; applied: ApplyReport[] };
+
+/**
+ * Re-applies skills and gateway entries for every installed project, after edits to the hub. Each
+ * project lands in one bucket of the result, so a project that cannot be applied does not stop the others.
+ */
+export async function syncAll(home: string, port: number): Promise<SyncReport> {
+  const result: SyncReport = { global: [], applied: [], missing: [], unsafe: [], failed: [] };
+  try {
+    result.global = linkGlobalSkills(home);
+  } catch (error) {
+    result.failed.push({ dir: "global", error: errorMessage(error) });
+  }
   for (const [dir, binding] of Object.entries(readState(home).projects)) {
     if (!existsSync(dir)) {
-      missing.push(dir);
-      continue;
+      result.missing.push(dir);
+    } else if (unsafeProjectDir(dir) !== undefined) {
+      result.unsafe.push(dir);
+    } else {
+      try {
+        result.applied.push(await applyProject(home, dir, binding, port));
+      } catch (error) {
+        result.failed.push({ dir, error: errorMessage(error) });
+      }
     }
-    const reason = unsafeProjectDir(dir);
-    if (reason !== undefined) {
-      unsafe.push({ dir, reason });
-      continue;
-    }
-    projects.push(await applyProject(home, dir, binding, port));
   }
-  return { global: linkGlobalSkills(home), projects, missing, unsafe };
+  return result;
 }
 
 /**

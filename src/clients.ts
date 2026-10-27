@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { parse, stringify } from "smol-toml";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { errorMessage } from "./errors.ts";
+import { writeFileAtomic } from "./fsutil.ts";
+import { editTomlTable } from "./toml-edit.ts";
 
 /**
  * The gateway is registered under the same name everywhere, so a project-level entry
@@ -45,6 +46,20 @@ function run(command: string, args: string[], cwd: string | undefined, { timeout
     }, timeoutMs);
     child.stdin?.end();
   });
+}
+
+/** What the three clients print when `mcp remove` finds no entry: `No MCP server named 'gw' ...`. */
+const NOT_REGISTERED = /no mcp server named/i;
+
+/** Removing an entry that is already gone is the goal reached, so a retry of a half-finished uninstall can succeed. */
+async function removeEntry(command: string, args: string[], cwd: string | undefined, timing: Timing): Promise<void> {
+  try {
+    await run(command, args, cwd, timing);
+  } catch (error) {
+    if (!NOT_REGISTERED.test(errorMessage(error))) {
+      throw error;
+    }
+  }
 }
 
 async function attempt(client: ClientName, detail: string, action: () => Promise<void>): Promise<ClientResult> {
@@ -91,13 +106,18 @@ function unregisterClaude(scope: Scope, timing: Timing): Promise<ClientResult> {
     claudeScope = "local";
   }
   return attempt("claude", `${claudeScope} scope`, async () => {
-    await run("claude", ["mcp", "remove", ENTRY_NAME, "-s", claudeScope], cwdOf(scope), timing);
+    await removeEntry("claude", ["mcp", "remove", ENTRY_NAME, "-s", claudeScope], cwdOf(scope), timing);
   });
 }
 
 function registerGrok(endpoint: Endpoint, scope: Scope, timing: Timing): Promise<ClientResult> {
   const grokScope = scope.kind;
   return attempt("grok", `${grokScope} scope`, async () => {
+    try {
+      await run("grok", ["mcp", "remove", ENTRY_NAME, "-s", grokScope], cwdOf(scope), timing);
+    } catch {
+      // Not registered yet.
+    }
     if (endpoint.kind === "stdio") {
       await run("grok", ["mcp", "add", ENTRY_NAME, endpoint.command, "-s", grokScope, "--", ...endpoint.args], cwdOf(scope), timing);
     } else {
@@ -108,9 +128,11 @@ function registerGrok(endpoint: Endpoint, scope: Scope, timing: Timing): Promise
 
 function unregisterGrok(scope: Scope, timing: Timing): Promise<ClientResult> {
   return attempt("grok", `${scope.kind} scope`, async () => {
-    await run("grok", ["mcp", "remove", ENTRY_NAME, "-s", scope.kind], cwdOf(scope), timing);
+    await removeEntry("grok", ["mcp", "remove", ENTRY_NAME, "-s", scope.kind], cwdOf(scope), timing);
   });
 }
+
+const CODEX_SERVERS = "mcp_servers";
 
 export function codexConfigPath(scope: Scope): string {
   if (scope.kind === "project") {
@@ -140,42 +162,40 @@ function registerCodex(endpoint: Endpoint, scope: Scope, timing: Timing): Promis
   }
   const path = codexConfigPath(scope);
   return attempt("codex", `${path} (Codex reads it only in trusted projects)`, async () => {
-    const config = readToml(path);
-    const servers = (config.mcp_servers ?? {}) as Record<string, unknown>;
-    if (endpoint.kind === "stdio") {
-      servers[ENTRY_NAME] = { command: endpoint.command, args: endpoint.args };
-    } else {
-      servers[ENTRY_NAME] = { url: endpoint.url };
+    const current = readText(path);
+    const next = editTomlTable(current, [CODEX_SERVERS, ENTRY_NAME], codexEntry(endpoint));
+    if (next !== current) {
+      writeFileAtomic(path, next, { mode: 0o644 });
     }
-    config.mcp_servers = servers;
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, stringify(config) + "\n");
   });
+}
+
+function codexEntry(endpoint: Endpoint): Record<string, unknown> {
+  if (endpoint.kind === "stdio") {
+    return { command: endpoint.command, args: endpoint.args };
+  }
+  return { url: endpoint.url };
 }
 
 function unregisterCodex(scope: Scope, timing: Timing): Promise<ClientResult> {
   if (scope.kind === "user") {
-    return attempt("codex", "user scope", () => run("codex", ["mcp", "remove", ENTRY_NAME], undefined, timing));
+    return attempt("codex", "user scope", () => removeEntry("codex", ["mcp", "remove", ENTRY_NAME], undefined, timing));
   }
   const path = codexConfigPath(scope);
   return attempt("codex", path, async () => {
-    if (!existsSync(path)) {
-      return;
+    const current = readText(path);
+    const next = editTomlTable(current, [CODEX_SERVERS, ENTRY_NAME], undefined);
+    if (next !== current) {
+      writeFileAtomic(path, next, { mode: 0o644 });
     }
-    const config = readToml(path);
-    const servers = config.mcp_servers as Record<string, unknown> | undefined;
-    if (servers) {
-      delete servers[ENTRY_NAME];
-    }
-    writeFileSync(path, stringify(config) + "\n");
   });
 }
 
-function readToml(path: string): Record<string, unknown> {
+function readText(path: string): string {
   if (!existsSync(path)) {
-    return {};
+    return "";
   }
-  return parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+  return readFileSync(path, "utf8");
 }
 
 /** The three clients are registered at the same time, so a slow one does not hold up the others. */
@@ -188,4 +208,7 @@ export function unregisterAll(scope: Scope, timing: Timing = { timeoutMs: COMMAN
 }
 
 /** Files the clients write inside a project, relative to its root. */
-export const PROJECT_CONFIG_FILES = [".codex/config.toml", ".grok/config.toml"];
+export const PROJECT_CONFIG_FILES: Array<{ client: ClientName; file: string }> = [
+  { client: "codex", file: ".codex/config.toml" },
+  { client: "grok", file: ".grok/config.toml" },
+];

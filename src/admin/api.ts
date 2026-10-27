@@ -1,12 +1,12 @@
 import { existsSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { isAbsolute } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
 import { loadConfig, ServerSchema, slug, writeConfig } from "../config.ts";
 import { errorMessage, UserError, type UserErrorKind } from "../errors.ts";
 import type { GatewayPool } from "../pool.ts";
 import { installedProfiles, installProject, listProjects, relinkSkills, syncAll, uninstallProject, unsafeProjectDir } from "../project.ts";
-import type { ApiError, ProjectApplyResult, ProjectView } from "./contract.ts";
+import type { ApiError, ProjectApplyResult, ProjectView, SyncResult } from "./contract.ts";
 import { applyEdit, ConfigEditSchema } from "./edits.ts";
 import { profileStatus, profileView, testServer } from "./profiles.ts";
 import { deleteSecret, listSecrets, SECRET_KEY, setSecret } from "./secrets.ts";
@@ -228,13 +228,17 @@ function routes({ home, port, pool }: AdminContext): Route[] {
     ),
 
     route("DELETE", "/api/projects", { params: noParams, body: z.object({ dir: z.string() }).strict() }, async ({ body }) => {
-      if (!(body.dir in listProjects(home))) {
-        throw new UserError("notFound", `${body.dir} is not an installed project`);
+      const dir = resolve(body.dir);
+      if (!(dir in listProjects(home))) {
+        throw new UserError("notFound", `${dir} is not an installed project`);
       }
-      return uninstallProject(home, body.dir);
+      return toApplyResult(await uninstallProject(home, dir));
     }),
 
-    route("POST", "/api/sync", { params: noParams, body: noBody }, async () => (await syncAll(home, port)).projects.map(toApplyResult)),
+    route("POST", "/api/sync", { params: noParams, body: noBody }, async (): Promise<SyncResult> => {
+      const { applied, missing, unsafe, failed } = await syncAll(home, port);
+      return { applied: applied.map(toApplyResult), missing, unsafe, failed };
+    }),
   ];
 }
 
