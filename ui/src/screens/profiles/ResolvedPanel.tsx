@@ -1,43 +1,48 @@
+import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
 import type { ResolvedProfileView } from "../../contract.ts";
-import { Badge } from "../../components/Badge.tsx";
 import { hrefFor } from "../../router.ts";
 
 export function ResolvedPanel({ view }: { view: ResolvedProfileView }) {
   const servers = Object.entries(view.servers).sort(([a], [b]) => a.localeCompare(b));
   return (
-    <div className="resolved">
-      <div className="resolved-group">
-        <div className="field-label">Servidores</div>
-        {servers.length === 0 && <span className="muted">Nenhum.</span>}
-        <ul className="resolved-list">
-          {servers.map(([server, from]) => (
-            <li key={server}>
-              <a className="mono" href={hrefFor({ screen: "servers", server })}>
-                {server}
-              </a>
-              <Origin from={from} self={view.name} />
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="resolved-group">
-        <div className="field-label">Conjuntos de skills</div>
-        {view.skillSets.length === 0 && <span className="muted">Nenhum.</span>}
-        <ul className="resolved-list">
-          {view.skillSets.map((set) => (
-            <li key={set}>
-              <a href={hrefFor({ screen: "skills", set })}>{set}</a>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <div className="grid gap-3 md:grid-cols-2">
+      <Group title="Servidores" empty={servers.length === 0}>
+        {servers.map(([server, from]) => (
+          <li key={server} className="flex items-center gap-2">
+            <a className="font-mono text-sm underline-offset-4 hover:underline" href={hrefFor({ screen: "servers", server })}>
+              {server}
+            </a>
+            <Origin from={from} self={view.name} />
+          </li>
+        ))}
+      </Group>
+      <Group title="Conjuntos de skills" empty={view.skillSets.length === 0}>
+        {view.skillSets.map((set) => (
+          <li key={set}>
+            <a className="text-sm underline-offset-4 hover:underline" href={hrefFor({ screen: "skills", view: "hub", set })}>
+              {set}
+            </a>
+          </li>
+        ))}
+      </Group>
+    </div>
+  );
+}
+
+function Group({ title, empty, children }: { title: string; empty: boolean; children: ReactNode }) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3">
+      <div className="mb-2 text-sm font-medium">{title}</div>
+      {empty && <p className="text-sm text-muted-foreground">Nenhum.</p>}
+      <ul className="space-y-1.5">{children}</ul>
     </div>
   );
 }
 
 function Origin({ from, self }: { from: string; self: string }) {
   if (from === self) {
-    return <Badge tone="accent">próprio</Badge>;
+    return <Badge>próprio</Badge>;
   }
-  return <Badge tone="neutral">de {from}</Badge>;
+  return <Badge variant="secondary">de {from}</Badge>;
 }
