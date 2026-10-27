@@ -3,21 +3,12 @@ import { basename, join, relative, sep } from "node:path";
 import type { Config } from "../config.ts";
 import { UserError } from "../errors.ts";
 import { writeFileAtomic } from "../fsutil.ts";
-import { userSkillDirs } from "../project.ts";
 import { GLOBAL_SET, parseFrontmatter } from "../skills.ts";
+import { isRealDir, readSkillLock, SKILL_FILE, skillEntries, userSkillDirs } from "../user-skills.ts";
 import type { ImportableSkill, SkillDocument, SkillSet, SkillSummary } from "./contract.ts";
-
-/** Folder names a skill may have: no separators and no leading dot, so a name never leaves its set. */
-export const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-
-const SKILL_FILE = "SKILL.md";
 
 function skillsRoot(home: string): string {
   return join(home, "skills");
-}
-
-function isRealDir(path: string): boolean {
-  return existsSync(path) && lstatSync(path).isDirectory();
 }
 
 /** Whether anything, a dangling symlink included, is at `path`. */
@@ -167,14 +158,18 @@ export function deleteSkill(home: string, set: string, name: string) {
   rmSync(requireSkill(home, set, name), { recursive: true });
 }
 
-/** Real skill folders (not links into the hub) in the user-level skill dirs. */
+/**
+ * Real skill folders (not links into the hub) in the user-level skill dirs. A skill the `skills` CLI
+ * installed is left out: moving it into the hub would take it from under the CLI that updates it.
+ */
 export function listImportable(): ImportableSkill[] {
+  const managed = readSkillLock();
   return userSkillDirs().flatMap((dir) => {
     if (!isRealDir(dir)) {
       return [];
     }
-    return readdirSync(dir)
-      .filter((name) => SKILL_NAME.test(name) && isRealDir(join(dir, name)) && existsSync(join(dir, name, SKILL_FILE)))
+    return skillEntries(dir)
+      .filter((name) => !managed.has(name) && isRealDir(join(dir, name)))
       .map((name) => {
         const path = join(dir, name);
         return { name, path, description: summary(path, "").description };

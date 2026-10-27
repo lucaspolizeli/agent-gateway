@@ -6,6 +6,7 @@ import { loadConfig, ServerSchema, slug, writeConfig } from "../config.ts";
 import { describeIssues, errorMessage, HTTP_STATUS, UserError } from "../errors.ts";
 import type { GatewayPool } from "../pool.ts";
 import { installedProfiles, installProject, listProjects, relinkSkills, syncAll, uninstallProject, unsafeProjectDir } from "../project.ts";
+import { listUserSkills, SKILL_NAME } from "../user-skills.ts";
 import type { ApiError, ProjectApplyResult, ProjectView, SyncResult } from "./contract.ts";
 import { applyEdit, ConfigEditSchema } from "./edits.ts";
 import { profileStatus, profileView, testServer } from "./profiles.ts";
@@ -18,7 +19,6 @@ import {
   listSkillSets,
   moveSkill,
   readSkill,
-  SKILL_NAME,
   writeSkill,
 } from "./skills.ts";
 import { TOKEN_HEADER, tokenMatches } from "./token.ts";
@@ -182,6 +182,10 @@ function routes({ home, port, pool }: AdminContext): Route[] {
     }),
 
     route("GET", "/api/skills/importable", { params: noParams, body: noBody }, () => listImportable()),
+
+    route("GET", "/api/skills/user", { params: noParams, body: noBody }, () =>
+      listUserSkills(home).map(({ name, description, origin }) => ({ name, description, origin })),
+    ),
 
     route(
       "POST",

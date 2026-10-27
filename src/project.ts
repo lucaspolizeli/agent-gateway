@@ -9,6 +9,7 @@ import { codexConfigPath, COMMAND_TIMEOUT_MS, PROJECT_CONFIG_FILES, registerAll,
 import { loadConfig, resolveProfile } from "./config.ts";
 import { errorMessage, UserError } from "./errors.ts";
 import { collectSkills, GLOBAL_SET, linkSkills, type LinkReport } from "./skills.ts";
+import { userSkillDirs } from "./user-skills.ts";
 
 export type Transport = "stdio" | "http";
 type Binding = { profile: string; transport: Transport };
@@ -17,11 +18,6 @@ type State = { projects: Record<string, Binding>; global?: Binding };
 
 /** Skill folders read by each client: Claude Code and Grok read `.claude/skills`, Codex reads `.agents/skills`. */
 const PROJECT_SKILL_DIRS = [".claude/skills", ".agents/skills"];
-
-/** User-level skill folders of the same clients, read through `os.homedir()` on every call. */
-export function userSkillDirs(): string[] {
-  return [join(homedir(), ".claude", "skills"), join(homedir(), ".agents", "skills")];
-}
 
 export const DEFAULT_PORT = 7820;
 

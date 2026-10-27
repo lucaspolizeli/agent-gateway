@@ -9,6 +9,7 @@ import {
   readdirSync,
   readFileSync,
   readlinkSync,
+  realpathSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -374,6 +375,28 @@ test("real folders in the user skill dirs can be imported into the hub", async (
   assert.equal(readlinkSync(join(userSkills, "notes")), join(home, "skills", "global", "notes"));
   assert.equal(readlinkSync(join(userHome, ".agents", "skills", "notes")), join(home, "skills", "global", "notes"));
   assert.deepEqual(await api("GET", "/api/skills/importable"), []);
+});
+
+test("skills the skills CLI installed are listed with their source and are never importable", async () => {
+  const agentsSkills = join(userHome, ".agents", "skills");
+  const claudeSkills = join(userHome, ".claude", "skills");
+  makeSkill(join(agentsSkills, "vendored"), "vendored");
+  symlinkSync(join("..", "..", ".agents", "skills", "vendored"), join(claudeSkills, "vendored"));
+  writeFileSync(join(userHome, ".agents", ".skill-lock.json"), JSON.stringify({ version: 3, skills: { vendored: { source: "acme/skills" } } }));
+  makeSkill(join(claudeSkills, "mine"), "mine");
+  mkdirSync(join(claudeSkills, "synced"));
+
+  assert.deepEqual(await api("GET", "/api/skills/importable"), [{ name: "mine", path: join(claudeSkills, "mine"), description: "mine things" }]);
+  assert.equal((await call("POST", "/api/skills/import", { body: { path: join(agentsSkills, "vendored"), toSet: "global" } })).status, 404);
+  assert.equal(existsSync(join(agentsSkills, "vendored", "SKILL.md")), true);
+
+  assert.deepEqual(await api("GET", "/api/skills/user"), [
+    { name: "notes", description: "notes things", origin: { kind: "hub", set: "global" } },
+    { name: "linked", description: "linked things", origin: { kind: "unmanaged", path: realpathSync(join(userHome, "elsewhere", "linked")) } },
+    { name: "mine", description: "mine things", origin: { kind: "unmanaged", path: join(claudeSkills, "mine") } },
+    { name: "vendored", description: "vendored things", origin: { kind: "managed", source: "acme/skills" } },
+  ]);
+  rmSync(join(claudeSkills, "mine"), { recursive: true });
 });
 
 test("the UI is served without the token, and refuses to be framed", async () => {
