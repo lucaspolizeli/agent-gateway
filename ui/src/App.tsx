@@ -1,19 +1,16 @@
 import type { ReactNode } from "react";
 import { adminToken } from "./api/token.ts";
-import { hrefFor, useRoute, type Route } from "./router.ts";
+import { Sidebar, type NavCount } from "./components/Sidebar.tsx";
+import { useRoute, type Route, type Screen } from "./router.ts";
 import { ProfilesScreen } from "./screens/ProfilesScreen.tsx";
 import { ProjectsScreen } from "./screens/ProjectsScreen.tsx";
 import { ServersScreen } from "./screens/ServersScreen.tsx";
 import { SkillsScreen } from "./screens/SkillsScreen.tsx";
 import { StatusScreen } from "./screens/StatusScreen.tsx";
-
-const tabs: Array<{ route: Route; label: string }> = [
-  { route: { screen: "status" }, label: "Status" },
-  { route: { screen: "servers" }, label: "Servidores" },
-  { route: { screen: "profiles" }, label: "Perfis" },
-  { route: { screen: "skills" }, label: "Skills" },
-  { route: { screen: "projects" }, label: "Projetos" },
-];
+import { useConfig } from "./state/config.ts";
+import { useGatewayHealth } from "./state/health.ts";
+import { useProjects } from "./state/projects.ts";
+import { useSkillSets } from "./state/skills.ts";
 
 function renderScreen(route: Route): ReactNode {
   switch (route.screen) {
@@ -32,26 +29,47 @@ function renderScreen(route: Route): ReactNode {
 
 export function App() {
   const route = useRoute();
-  const hasToken = adminToken() !== undefined;
+  if (adminToken() === undefined) {
+    return (
+      <div className="app">
+        <Sidebar current={route.screen} counts={{}} />
+        <main className="main">
+          <div className="content">
+            <MissingTokenBanner />
+          </div>
+        </main>
+      </div>
+    );
+  }
+  return <ConnectedApp route={route} />;
+}
+
+function ConnectedApp({ route }: { route: Route }) {
+  const config = useConfig();
+  const health = useGatewayHealth();
+  const skillSets = useSkillSets();
+  const projects = useProjects();
+  const counts: Partial<Record<Screen, NavCount>> = {
+    status: { count: health.summary.attention.length, tone: "danger", label: "itens que precisam de atenção" },
+    servers: { count: Object.keys(config.data?.servers ?? {}).length, tone: "neutral", label: "servidores" },
+    profiles: { count: Object.keys(config.data?.profiles ?? {}).length, tone: "neutral", label: "perfis" },
+    skills: {
+      count: (skillSets.data ?? []).reduce((total, set) => total + set.skills.length, 0),
+      tone: "neutral",
+      label: "skills",
+    },
+    projects: { count: projects.data?.length ?? 0, tone: "neutral", label: "projetos" },
+  };
+  let summary = undefined;
+  if (!health.isPending) {
+    summary = health.summary;
+  }
   return (
     <div className="app">
-      <header className="topbar">
-        <span className="brand">agent-gateway</span>
-        <nav className="tabs">
-          {tabs.map((tab) => (
-            <a
-              key={tab.route.screen}
-              className="tab"
-              aria-current={tab.route.screen === route.screen}
-              href={hrefFor(tab.route)}
-            >
-              {tab.label}
-            </a>
-          ))}
-        </nav>
-      </header>
-      {!hasToken && <MissingTokenBanner />}
-      {hasToken && <main className="content">{renderScreen(route)}</main>}
+      <Sidebar current={route.screen} counts={counts} health={summary} />
+      <main className="main">
+        <div className="content">{renderScreen(route)}</div>
+      </main>
     </div>
   );
 }
