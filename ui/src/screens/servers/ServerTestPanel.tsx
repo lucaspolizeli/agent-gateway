@@ -1,5 +1,12 @@
+import { CircleCheckIcon, CircleXIcon, PlugZapIcon } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ServerTestResult } from "../../contract.ts";
 import { plural } from "../../domain/format.ts";
+
+/** Select values cannot be empty, so testing without a profile's secrets has its own value. */
+export const NO_PROFILE = "~none";
 
 type ControlsProps = {
   profiles: string[];
@@ -12,20 +19,24 @@ type ControlsProps = {
 export function TestControls({ profiles, profile, onProfileChange, disabled, onRun }: ControlsProps) {
   return (
     <>
-      <label className="test-profile">
-        <span className="muted small">Segredos de</span>
-        <select value={profile} aria-label="Segredos do perfil" onChange={(event) => onProfileChange(event.target.value)}>
-          <option value="">nenhum perfil</option>
+      <Select value={profile} onValueChange={onProfileChange}>
+        <SelectTrigger aria-label="Segredos do perfil usados no teste" className="w-44">
+          <span className="text-muted-foreground">Segredos de</span>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_PROFILE}>nenhum perfil</SelectItem>
           {profiles.map((name) => (
-            <option key={name} value={name}>
+            <SelectItem key={name} value={name}>
               {name}
-            </option>
+            </SelectItem>
           ))}
-        </select>
-      </label>
-      <button type="button" disabled={disabled} onClick={onRun}>
+        </SelectContent>
+      </Select>
+      <Button type="button" variant="outline" disabled={disabled} onClick={onRun}>
+        <PlugZapIcon />
         Testar conexão
-      </button>
+      </Button>
     </>
   );
 }
@@ -33,27 +44,29 @@ export function TestControls({ profiles, profile, onProfileChange, disabled, onR
 export function TestResultView({ result }: { result: ServerTestResult }) {
   if (!result.ok) {
     return (
-      <div className="test-result">
-        <div className="status-line error">Falhou em {result.durationMs} ms</div>
-        <div className="error-box" role="alert">
-          {result.error}
-        </div>
-      </div>
+      <Alert variant="destructive">
+        <CircleXIcon />
+        <AlertTitle>Falhou em {result.durationMs} ms</AlertTitle>
+        <AlertDescription className="font-mono text-xs whitespace-pre-wrap">{result.error}</AlertDescription>
+      </Alert>
     );
   }
   return (
-    <div className="test-result">
-      <div className="status-line ok">
+    <Alert>
+      <CircleCheckIcon className="text-success" />
+      <AlertTitle>
         Conectou em {result.durationMs} ms · {plural(result.tools.length, "tool", "tools")}
-      </div>
-      <ul className="test-tools">
-        {result.tools.map((tool) => (
-          <li key={tool.name}>
-            <span className="mono">{tool.name}</span>
-            {tool.description !== undefined && <span className="muted truncate">{tool.description}</span>}
-          </li>
-        ))}
-      </ul>
-    </div>
+      </AlertTitle>
+      <AlertDescription>
+        <ul className="mt-1 w-full space-y-1">
+          {result.tools.map((tool) => (
+            <li key={tool.name} className="flex min-w-0 gap-2">
+              <span className="font-mono text-foreground">{tool.name}</span>
+              {tool.description !== undefined && <span className="truncate">{tool.description}</span>}
+            </li>
+          ))}
+        </ul>
+      </AlertDescription>
+    </Alert>
   );
 }

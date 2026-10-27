@@ -1,9 +1,11 @@
+import { PlusIcon, ServerIcon } from "lucide-react";
 import { useState } from "react";
 import type { GatewayConfig } from "../contract.ts";
-import { Badge } from "../components/Badge.tsx";
-import { PlusIcon } from "../components/Icons.tsx";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "../components/PageHeader.tsx";
 import { QueryState } from "../components/QueryState.tsx";
+import { DetailPlaceholder, ListLink, ListPane, SplitView } from "../components/SplitView.tsx";
 import { StatusDot } from "../components/StatusDot.tsx";
 import { serverHealth, type Health } from "../domain/health.ts";
 import { serverKind, serverSummary } from "../domain/serverForm.ts";
@@ -23,47 +25,50 @@ export function ServersScreen({ selected }: { selected?: string }) {
       setCreating(false);
     }
   }
+  async function startCreating() {
+    if (await navigate({ screen: "servers" })) {
+      setCreating(true);
+    }
+  }
   return (
-    <section>
+    <>
       <PageHeader
         title="Servidores"
         description="Servidores MCP que os perfis podem usar. A saúde vem dos perfis rodando."
         actions={
-          <button
-            type="button"
-            className="primary"
-            onClick={() => {
-              if (navigate({ screen: "servers" })) {
-                setCreating(true);
-              }
-            }}
-          >
+          <Button type="button" onClick={() => void startCreating()}>
             <PlusIcon />
             Novo servidor
-          </button>
+          </Button>
         }
       />
       <QueryState query={config}>
         {(data) => (
-          <div className="split">
-            <ServerList
-              config={data}
-              health={serverHealth([...health.statuses.values()])}
-              selected={selected}
-              creating={creating}
-            />
-            <EditorPane
-              config={data}
-              target={editorTarget(data, creating, selected)}
-              onCreated={(name) => {
-                setCreating(false);
-                navigate({ screen: "servers", server: name }, { confirmed: true });
-              }}
-            />
-          </div>
+          <SplitView
+            list={
+              <ServerList
+                config={data}
+                health={serverHealth([...health.statuses.values()])}
+                selected={selected}
+                creating={creating}
+                onCreate={() => void startCreating()}
+              />
+            }
+            detail={
+              <EditorPane
+                config={data}
+                target={editorTarget(data, creating, selected)}
+                onCreate={() => void startCreating()}
+                onCreated={(name) => {
+                  setCreating(false);
+                  void navigate({ screen: "servers", server: name }, { confirmed: true });
+                }}
+              />
+            }
+          />
         )}
       </QueryState>
-    </section>
+    </>
   );
 }
 
@@ -93,44 +98,69 @@ type ListProps = {
   health: Map<string, Health>;
   selected?: string;
   creating: boolean;
+  onCreate: () => void;
 };
 
-function ServerList({ config, health, selected, creating }: ListProps) {
+function ServerList({ config, health, selected, creating, onCreate }: ListProps) {
   const names = Object.keys(config.servers).sort();
   return (
-    <nav className="master" aria-label="Servidores">
-      {names.length === 0 && <p className="empty">Nenhum servidor.</p>}
+    <ListPane label="Servidores">
+      {names.length === 0 && (
+        <DetailPlaceholder
+          className="min-h-0 border-0 p-4"
+          icon={<ServerIcon />}
+          title="Nenhum servidor"
+          description="Cadastre o primeiro servidor MCP."
+          action={
+            <Button type="button" size="sm" onClick={onCreate}>
+              <PlusIcon />
+              Novo servidor
+            </Button>
+          }
+        />
+      )}
       {names.map((name) => {
         const spec = config.servers[name];
         if (spec === undefined) {
           return null;
         }
         return (
-          <a
-            key={name}
-            className="master-item"
-            aria-current={!creating && name === selected && "page"}
-            href={hrefFor({ screen: "servers", server: name })}
-          >
-            <span className="master-item-title">
+          <ListLink key={name} href={hrefFor({ screen: "servers", server: name })} current={!creating && name === selected}>
+            <span className="flex items-center gap-2">
               <StatusDot health={health.get(name) ?? "unknown"} />
-              <span className="mono truncate">{name}</span>
-              <span className="spacer" />
-              <Badge tone="neutral">{serverKind(spec)}</Badge>
+              <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">{name}</span>
+              <Badge variant="outline">{serverKind(spec)}</Badge>
             </span>
-            <span className="master-item-meta mono truncate server-summary">{serverSummary(spec)}</span>
-          </a>
+            <span className="truncate pl-4 font-mono text-xs text-muted-foreground">{serverSummary(spec)}</span>
+          </ListLink>
         );
       })}
-    </nav>
+    </ListPane>
   );
 }
 
-type PaneProps = { config: GatewayConfig; target?: EditorTarget; onCreated: (name: string) => void };
+type PaneProps = {
+  config: GatewayConfig;
+  target?: EditorTarget;
+  onCreate: () => void;
+  onCreated: (name: string) => void;
+};
 
-function EditorPane({ config, target, onCreated }: PaneProps) {
+function EditorPane({ config, target, onCreate, onCreated }: PaneProps) {
   if (target === undefined) {
-    return <div className="placeholder">Selecione um servidor ou crie um novo.</div>;
+    return (
+      <DetailPlaceholder
+        icon={<ServerIcon />}
+        title="Selecione um servidor"
+        description="Escolha um servidor na lista para editar, testar ou remover."
+        action={
+          <Button type="button" variant="outline" onClick={onCreate}>
+            <PlusIcon />
+            Novo servidor
+          </Button>
+        }
+      />
+    );
   }
   let key = "new";
   let users: string[] = [];

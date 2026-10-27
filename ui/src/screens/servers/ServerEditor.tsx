@@ -1,10 +1,16 @@
+import { SaveIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ConfigEdit, ServerSpec } from "../../contract.ts";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
-import { Badge } from "../../components/Badge.tsx";
-import { ConfirmButton } from "../../components/ConfirmButton.tsx";
-import { FieldHint } from "../../components/FieldHint.tsx";
-import { MutationStatus } from "../../components/MutationStatus.tsx";
+import { ConfirmAction } from "../../components/ConfirmAction.tsx";
+import { withFeedback } from "../../components/feedback.ts";
 import { RenameControl } from "../../components/RenameControl.tsx";
 import { StaleNotice } from "../../components/StaleNotice.tsx";
 import {
@@ -23,7 +29,7 @@ import { useConfigEdit, useServerTest } from "../../state/config.ts";
 import { useSyncedDraft } from "../../state/syncedDraft.ts";
 import { confirmLeave, useUnsavedGuard } from "../../state/unsaved.ts";
 import { AdvancedFields, ConnectionFields, VariablesFields } from "./ServerFields.tsx";
-import { TestControls, TestResultView } from "./ServerTestPanel.tsx";
+import { TestControls, TestResultView, NO_PROFILE } from "./ServerTestPanel.tsx";
 
 type RenameServer = Extract<ConfigEdit, { op: "renameServer" }>;
 
@@ -37,7 +43,11 @@ type Props = {
   onCreated: (name: string) => void;
 };
 
-const kindLabels: Record<ServerKind, string> = { stdio: "stdio · processo local", http: "http · remoto" };
+const kindLabels: Record<ServerKind, { name: string; hint: string }> = {
+  stdio: { name: "stdio", hint: "processo local" },
+  http: { name: "http", hint: "remoto" },
+};
+const kinds: ServerKind[] = ["stdio", "http"];
 const variablesTitles: Record<ServerKind, string> = { stdio: "Ambiente", http: "Headers" };
 
 function sourceOf(target: EditorTarget): ServerSpec {
@@ -54,6 +64,10 @@ function formOf(target: EditorTarget, source: ServerSpec): ServerForm {
   return emptyForms.stdio();
 }
 
+function isKind(value: string): value is ServerKind {
+  return kinds.some((kind) => kind === value);
+}
+
 export function ServerEditor({ target, profiles, usedBy, existingNames, onCreated }: Props) {
   const [name, setName] = useState("");
   const {
@@ -68,7 +82,7 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
     matches: (draft: ServerForm, source: ServerSpec) => sameSpec(specFromForm(draft), source),
     same: sameSpec,
   });
-  const [testProfile, setTestProfile] = useState(usedBy[0] ?? profiles[0] ?? "");
+  const [testProfile, setTestProfile] = useState(usedBy[0] ?? profiles[0] ?? NO_PROFILE);
   const save = useConfigEdit();
   const test = useServerTest();
 
@@ -96,16 +110,19 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
     resetTest();
   }, [specKey, resetTest]);
 
-  function submit() {
+  async function submit() {
     if (target.kind === "existing") {
-      save.mutate({ op: "upsertServer", name: target.name, spec });
+      await withFeedback(save.mutateAsync({ op: "upsertServer", name: target.name, spec }), "Servidor salvo.");
       return;
     }
-    save.mutate({ op: "upsertServer", name: newName, spec }, { onSuccess: () => onCreated(newName) });
+    const saved = await withFeedback(save.mutateAsync({ op: "upsertServer", name: newName, spec }), "Servidor criado.");
+    if (saved !== undefined) {
+      onCreated(newName);
+    }
   }
 
   function runTest() {
-    if (testProfile === "") {
+    if (testProfile === NO_PROFILE) {
       test.mutate({ spec });
       return;
     }
@@ -114,109 +131,127 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
 
   return (
     <form
-      className="detail"
+      onChange={() => save.reset()}
       onSubmit={(event) => {
         event.preventDefault();
-        submit();
+        if (saveable) {
+          void submit();
+        }
       }}
     >
-      {target.kind === "existing" && <ExistingHeader name={target.name} kind={form.kind} usedBy={usedBy} />}
-      {stale && <StaleNotice message="O servidor mudou fora daqui. Recarregar?" onReload={reload} />}
-      {target.kind === "new" && (
-        <header className="detail-header">
-          <div className="detail-title">
-            <h2>Novo servidor</h2>
-            <span className="muted small">Preencha a conexão, teste e salve.</span>
-          </div>
-        </header>
-      )}
-
-      <section className="section">
-        <h3 className="section-title">Conexão</h3>
+      <Card className="overflow-visible">
+        {target.kind === "existing" && <ExistingHeader name={target.name} kind={form.kind} usedBy={usedBy} />}
         {target.kind === "new" && (
-          <label className="field">
-            <span className="field-label">Nome</span>
-            <input
-              className="mono"
-              value={name}
-              autoFocus
-              placeholder="meu-servidor"
-              aria-invalid={nameHint !== undefined}
-              aria-describedby={nameHint && "server-name-hint"}
-              onChange={(event) => setName(event.target.value)}
-            />
-            <FieldHint id="server-name-hint" message={nameHint} />
-          </label>
+          <CardHeader>
+            <CardTitle className="text-lg">Novo servidor</CardTitle>
+            <CardDescription>Preencha a conexão, teste e salve.</CardDescription>
+          </CardHeader>
         )}
-        <div className="segmented" role="radiogroup" aria-label="Transporte">
-          {(Object.keys(kindLabels) as ServerKind[]).map((kind) => (
-            <label key={kind} className="segment">
-              <input
-                type="radio"
-                name="server-kind"
-                checked={form.kind === kind}
-                onChange={() => setForm(emptyForms[kind]())}
-              />
-              {kindLabels[kind]}
-            </label>
-          ))}
-        </div>
-        <ConnectionFields form={form} onChange={setForm} />
-      </section>
+        <CardContent className="flex flex-col gap-6">
+          {stale && (
+            <StaleNotice message="Este servidor foi salvo em outro lugar enquanto você editava. Recarregar troca suas edições pela versão salva." onReload={reload} />
+          )}
+          <FieldSet>
+            <FieldLegend>Conexão</FieldLegend>
+            <FieldGroup>
+              {target.kind === "new" && (
+                <Field data-invalid={nameHint !== undefined}>
+                  <FieldLabel htmlFor="server-name">Nome</FieldLabel>
+                  <Input
+                    id="server-name"
+                    className="font-mono"
+                    value={name}
+                    autoFocus
+                    placeholder="meu-servidor"
+                    aria-invalid={nameHint !== undefined}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                  <FieldError>{nameHint}</FieldError>
+                </Field>
+              )}
+              <Field>
+                <FieldLabel id="server-kind-label">Transporte</FieldLabel>
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  spacing={0}
+                  aria-labelledby="server-kind-label"
+                  value={form.kind}
+                  onValueChange={(value) => {
+                    if (isKind(value) && value !== form.kind) {
+                      setForm(emptyForms[value]());
+                    }
+                  }}
+                >
+                  {kinds.map((kind) => (
+                    <ToggleGroupItem key={kind} value={kind} className="px-3">
+                      <span className="font-mono">{kindLabels[kind].name}</span>
+                      <span className="text-muted-foreground">· {kindLabels[kind].hint}</span>
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </Field>
+              <ConnectionFields form={form} onChange={setForm} />
+            </FieldGroup>
+          </FieldSet>
 
-      <section className="section">
-        <h3 className="section-title">{variablesTitles[form.kind]}</h3>
-        <p className="section-hint">
-          Use <code>{"${NOME}"}</code> para ler um valor dos segredos do perfil.
-        </p>
-        <VariablesFields form={form} onChange={setForm} />
-      </section>
+          <FieldSet>
+            <FieldLegend>{variablesTitles[form.kind]}</FieldLegend>
+            <FieldDescription>
+              Use <code className="font-mono">{"${NOME}"}</code> para ler um valor dos segredos do perfil.
+            </FieldDescription>
+            <VariablesFields form={form} onChange={setForm} />
+          </FieldSet>
 
-      {form.kind === "stdio" && (
-        <section className="section">
-          <h3 className="section-title">Avançado</h3>
-          <AdvancedFields form={form} onChange={setForm} />
-        </section>
-      )}
+          {form.kind === "stdio" && (
+            <FieldSet>
+              <FieldLegend>Avançado</FieldLegend>
+              <AdvancedFields form={form} onChange={setForm} />
+            </FieldSet>
+          )}
 
-      {(test.isPending || test.error !== null || test.data !== undefined) && (
-        <section className="section test-section" aria-live="polite">
-          <h3 className="section-title">Teste de conexão</h3>
-          {test.isPending && <span className="status-line pending">Conectando…</span>}
-          {test.error !== null && <div className="error-box">{test.error.message}</div>}
-          {!test.isPending && test.data !== undefined && <TestResultView result={test.data} />}
-        </section>
-      )}
+          {(test.isPending || test.error !== null || test.data !== undefined) && (
+            <FieldSet aria-live="polite">
+              <FieldLegend>Teste de conexão</FieldLegend>
+              {test.isPending && (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Spinner />
+                  Conectando…
+                </p>
+              )}
+              {test.error !== null && <FieldError>{test.error.message}</FieldError>}
+              {!test.isPending && test.data !== undefined && <TestResultView result={test.data} />}
+            </FieldSet>
+          )}
 
-      <ActionBar
-        messages={
-          <>
-            <BarStatus problems={problems} dirty={dirty} isNew={target.kind === "new"} />
-            <MutationStatus mutation={save} />
-          </>
-        }
-      >
-        <TestControls
-          profiles={profiles}
-          profile={testProfile}
-          onProfileChange={setTestProfile}
-          disabled={specProblems.length > 0 || test.isPending}
-          onRun={runTest}
-        />
-        <button type="submit" className="primary" disabled={!saveable}>
-          Salvar
-        </button>
-      </ActionBar>
+          {save.error !== null && <FieldError className="whitespace-pre-wrap">{save.error.message}</FieldError>}
+        </CardContent>
+
+        <ActionBar status={<BarStatus problems={problems} dirty={dirty} isNew={target.kind === "new"} />}>
+          <TestControls
+            profiles={profiles}
+            profile={testProfile}
+            onProfileChange={setTestProfile}
+            disabled={specProblems.length > 0 || test.isPending}
+            onRun={runTest}
+          />
+          <Button type="submit" disabled={!saveable}>
+            {save.isPending && <Spinner />}
+            {!save.isPending && <SaveIcon />}
+            Salvar
+          </Button>
+        </ActionBar>
+      </Card>
     </form>
   );
 }
 
 function BarStatus({ problems, dirty, isNew }: { problems: string[]; dirty: boolean; isNew: boolean }) {
   if (problems.length > 0) {
-    return <span className="bar-problem">{problems[0]}</span>;
+    return <span className="text-destructive">{problems[0]}</span>;
   }
   if (isNew) {
-    return <span className="dirty-indicator">novo servidor, ainda não salvo</span>;
+    return <span className="text-muted-foreground">Novo servidor, ainda não salvo</span>;
   }
   return <DirtyIndicator dirty={dirty} />;
 }
@@ -224,48 +259,57 @@ function BarStatus({ problems, dirty, isNew }: { problems: string[]; dirty: bool
 type HeaderProps = { name: string; kind: ServerKind; usedBy: string[] };
 
 function ExistingHeader({ name, kind, usedBy }: HeaderProps) {
-  const remove = useConfigEdit(() => navigate({ screen: "servers" }, { confirmed: true }));
-  const rename = useConfigEdit<RenameServer>((edit) => navigate({ screen: "servers", server: edit.to }, { confirmed: true }));
+  const remove = useConfigEdit(() => void navigate({ screen: "servers" }, { confirmed: true }));
+  const rename = useConfigEdit<RenameServer>(
+    (edit) => void navigate({ screen: "servers", server: edit.to }, { confirmed: true }),
+  );
   return (
-    <header className="detail-header">
-      <div className="detail-title">
-        <h2>
-          <span className="mono">{name}</span>
-          <Badge tone="neutral">{kind}</Badge>
-        </h2>
-        <span className="muted small used-by">
-          {usedBy.length === 0 && "Nenhum perfil usa este servidor."}
-          {usedBy.length > 0 && "Usado por "}
-          {usedBy.map((profile, index) => (
-            <span key={profile}>
-              {index > 0 && ", "}
-              <a href={hrefFor({ screen: "profiles", profile })}>{profile}</a>
-            </span>
-          ))}
-        </span>
-      </div>
-      <MutationStatus mutation={rename} success="Renomeado." />
-      <MutationStatus mutation={remove} success="Removido." />
-      <RenameControl
-        current={name}
-        validate={serverNameProblem}
-        disabled={rename.isPending}
-        onRename={(to) => {
-          if (confirmLeave()) {
-            rename.mutate({ op: "renameServer", from: name, to });
+    <CardHeader>
+      <CardTitle className="flex items-center gap-2 text-lg">
+        <span className="font-mono">{name}</span>
+        <Badge variant="outline">{kind}</Badge>
+      </CardTitle>
+      <CardDescription>
+        {usedBy.length === 0 && "Nenhum perfil usa este servidor."}
+        {usedBy.length > 0 && "Usado por "}
+        {usedBy.map((profile, index) => (
+          <span key={profile}>
+            {index > 0 && ", "}
+            <a className="text-foreground underline-offset-4 hover:underline" href={hrefFor({ screen: "profiles", profile })}>
+              {profile}
+            </a>
+          </span>
+        ))}
+      </CardDescription>
+      <CardAction className="flex flex-wrap gap-2">
+        <RenameControl
+          current={name}
+          validate={serverNameProblem}
+          disabled={rename.isPending}
+          onRename={async (to) => {
+            if (await confirmLeave()) {
+              await withFeedback(rename.mutateAsync({ op: "renameServer", from: name, to }), `Renomeado para ${to}.`);
+            }
+          }}
+        />
+        <ConfirmAction
+          label={
+            <>
+              <Trash2Icon />
+              Remover
+            </>
           }
-        }}
-      />
-      <ConfirmButton
-        label="Remover"
-        question={`Remover ${name} de todos os perfis?`}
-        disabled={remove.isPending}
-        onConfirm={() => {
-          if (confirmLeave()) {
-            remove.mutate({ op: "removeServer", name });
-          }
-        }}
-      />
-    </header>
+          title={`Remover ${name}?`}
+          description="O servidor sai de todos os perfis que o usam, junto com as tools ocultas dele."
+          confirmLabel="Remover"
+          disabled={remove.isPending}
+          onConfirm={async () => {
+            if (await confirmLeave()) {
+              await withFeedback(remove.mutateAsync({ op: "removeServer", name }), `${name} removido.`);
+            }
+          }}
+        />
+      </CardAction>
+    </CardHeader>
   );
 }
