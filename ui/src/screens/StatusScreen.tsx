@@ -1,17 +1,34 @@
 import type { ProfileStatus, ResolvedProfileView, UpstreamState } from "../contract.ts";
 import { Chain } from "../components/Chain.tsx";
 import { CountBadge } from "../components/CountBadge.tsx";
-import { MutationStatus } from "../components/MutationStatus.tsx";
+import { MutationStatus, type Verdict } from "../components/MutationStatus.tsx";
 import { PageHeader } from "../components/PageHeader.tsx";
 import { QueryState } from "../components/QueryState.tsx";
 import { RunningBadge } from "../components/RunningBadge.tsx";
 import { StatusDot } from "../components/StatusDot.tsx";
 import { UpstreamBadge } from "../components/UpstreamBadge.tsx";
 import { plural } from "../domain/format.ts";
-import { profileState, type AttentionItem, type HealthSummary } from "../domain/health.ts";
+import { profileState, reconnectOutcome, type AttentionItem, type HealthSummary } from "../domain/health.ts";
 import { hrefFor } from "../router.ts";
 import { useGatewayHealth } from "../state/health.ts";
 import { useProfiles, useReconnectServer, useStartProfile } from "../state/profiles.ts";
+
+type ReconnectVars = { profile: string; server: string };
+
+function reconnectVerdict(status: ProfileStatus, vars: ReconnectVars | undefined): Verdict {
+  const server = vars?.server ?? "";
+  const outcome = reconnectOutcome(status, server);
+  switch (outcome.kind) {
+    case "ready":
+      return { tone: "ok", message: `${server} reconectado.` };
+    case "connecting":
+      return { tone: "warn", message: `${server} ainda está conectando.` };
+    case "failed":
+      return { tone: "error", message: `${server}: ${outcome.error}` };
+    case "missing":
+      return { tone: "warn", message: `${server} não está mais neste perfil.` };
+  }
+}
 
 export function StatusScreen() {
   const profiles = useProfiles();
@@ -104,8 +121,8 @@ function FailedServerRow({ item }: { item: Extract<AttentionItem, { kind: "faile
           <a href={hrefFor({ screen: "profiles", profile: item.profile })}>{item.profile}</a>
         </div>
         <pre className="attention-error">{item.error}</pre>
+        <MutationStatus mutation={reconnect} verdict={reconnectVerdict} />
       </div>
-      <MutationStatus mutation={reconnect} success="Reconectado." />
       <button
         type="button"
         disabled={reconnect.isPending}
@@ -195,7 +212,7 @@ function RunningCard({ view, status }: { view: ResolvedProfileView; status?: Pro
       <footer className="profile-card-footer">
         <span className="muted small">{plural(status?.tools.length ?? 0, "tool exposta", "tools expostas")}</span>
         <span className="spacer" />
-        <MutationStatus mutation={reconnect} success="Reconectado." />
+        <MutationStatus mutation={reconnect} verdict={reconnectVerdict} />
       </footer>
     </article>
   );

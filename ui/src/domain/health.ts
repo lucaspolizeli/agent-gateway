@@ -81,3 +81,21 @@ export function profileState(status: ProfileStatus | undefined): ProfileState {
   }
   return "running";
 }
+
+export type ReconnectOutcome =
+  | { kind: "ready" }
+  | { kind: "connecting" }
+  | { kind: "failed"; error: string }
+  | { kind: "missing" };
+
+/** Reconnect answers with the whole profile status: the request only succeeded if this upstream is `ready`. */
+export function reconnectOutcome(status: ProfileStatus, server: string): ReconnectOutcome {
+  const upstream = status.upstreams.find((candidate) => candidate.server === server);
+  if (upstream === undefined) {
+    return { kind: "missing" };
+  }
+  if (upstream.state === "failed") {
+    return { kind: "failed", error: upstream.error };
+  }
+  return { kind: upstream.state };
+}
