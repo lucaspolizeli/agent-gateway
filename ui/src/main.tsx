@@ -3,7 +3,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { captureAdminToken } from "./api/token.ts";
 import { App } from "./App.tsx";
-import "./styles.css";
+import "./styles/tokens.css";
+import "./styles/base.css";
+import "./styles/components.css";
 
 captureAdminToken();
 

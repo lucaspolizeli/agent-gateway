@@ -6,12 +6,22 @@ type Props = {
   selected: string[];
   onChange: (selected: string[]) => void;
   empty: string;
+  mono?: boolean;
 };
 
-export function CheckboxGroup({ legend, options, selected, onChange, empty }: Props) {
+export function CheckboxGroup({ legend, options, selected, onChange, empty, mono }: Props) {
+  let optionClass = "";
+  if (mono === true) {
+    optionClass = "mono";
+  }
   return (
     <fieldset className="checkbox-group">
-      <legend>{legend}</legend>
+      <legend>
+        {legend}
+        <span className="checkbox-count">
+          {selected.length}/{options.length}
+        </span>
+      </legend>
       {options.length === 0 && <span className="muted small">{empty}</span>}
       {options.map((option) => (
         <label key={option} className="check">
@@ -20,7 +30,7 @@ export function CheckboxGroup({ legend, options, selected, onChange, empty }: Pr
             checked={selected.includes(option)}
             onChange={(event) => onChange(toggled(selected, option, event.target.checked))}
           />
-          <span className="mono">{option}</span>
+          <span className={optionClass}>{option}</span>
         </label>
       ))}
     </fieldset>

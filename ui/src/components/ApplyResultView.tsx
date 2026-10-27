@@ -1,35 +1,43 @@
 import type { ProjectApplyResult } from "../contract.ts";
 import { skillCounts } from "../domain/applyResult.ts";
-import { Badge } from "./Badge.tsx";
 
 export function ApplyResultView({ result }: { result: ProjectApplyResult }) {
   const counts = skillCounts(result);
   return (
     <div className="apply-result">
-      <div className="mono">{result.dir}</div>
-      <div className="row wrap">
+      <span className="mono truncate apply-dir" title={result.dir}>
+        {result.dir}
+      </span>
+      <span className="apply-clients">
         {result.clients.map((client) => (
-          <ClientBadge key={client.client} ok={client.ok} name={client.client} detail={client.detail} />
+          <ClientChip key={client.client} ok={client.ok} name={client.client} detail={client.detail} />
         ))}
-        <span className="muted">
-          skills: {counts.linked} linkadas, {counts.removed} removidas, {counts.skipped} ignoradas
-        </span>
-      </div>
+      </span>
+      <span className="muted small">
+        skills: {counts.linked} linkadas · {counts.removed} removidas · {counts.skipped} ignoradas
+      </span>
+      {result.clients
+        .filter((client) => !client.ok)
+        .map((client) => (
+          <div key={client.client} className="apply-error">
+            <b>{client.client}:</b> {client.detail}
+          </div>
+        ))}
     </div>
   );
 }
 
-function ClientBadge({ ok, name, detail }: { ok: boolean; name: string; detail: string }) {
+function ClientChip({ ok, name, detail }: { ok: boolean; name: string; detail: string }) {
   if (ok) {
     return (
-      <Badge tone="ok" title={detail}>
-        {name} ok
-      </Badge>
+      <span className="chip chip-ok" title={detail}>
+        {name} <b>ok</b>
+      </span>
     );
   }
   return (
-    <Badge tone="danger" title={detail}>
-      {name} FAIL: {detail}
-    </Badge>
+    <span className="chip chip-fail" title={detail}>
+      {name} <b>FAIL</b>
+    </span>
   );
 }

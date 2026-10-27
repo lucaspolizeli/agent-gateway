@@ -16,7 +16,11 @@ export function MutationStatus({ mutation, success = "Salvo." }: { mutation: Mut
     );
   }
   if (mutation.isSuccess) {
-    return <span className="status-line ok">{success}</span>;
+    return (
+      <span className="status-line ok" role="status">
+        {success}
+      </span>
+    );
   }
   return null;
 }
