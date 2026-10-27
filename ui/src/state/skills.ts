@@ -50,7 +50,7 @@ export function useDeleteSkill(onDone?: (vars: SkillRef) => void) {
 }
 
 export function useImportSkill() {
-  return useSetsMutation((vars: { path: string; toSet: string }) => api.importSkill(vars.path, vars.toSet));
+  return useSetsMutation((vars: { name: string; path: string; toSet: string }) => api.importSkill(vars.path, vars.toSet));
 }
 
 export function useSaveSkill() {
