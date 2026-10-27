@@ -1,6 +1,8 @@
+import { PlusIcon, XIcon } from "lucide-react";
 import type { MouseEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { newRow, type KeyValueRow } from "../domain/keyValueRows.ts";
-import { PlusIcon } from "./Icons.tsx";
 
 type Props = {
   rows: KeyValueRow[];
@@ -21,7 +23,7 @@ export function KeyValueEditor({ rows, onChange, keyPlaceholder, valuePlaceholde
     );
   }
   function remove(event: MouseEvent<HTMLButtonElement>, id: number) {
-    const row = event.currentTarget.closest(".kv-row");
+    const row = event.currentTarget.closest("[data-kv-row]");
     const next = row?.nextElementSibling ?? row?.previousElementSibling;
     onChange(rows.filter((other) => other.id !== id));
     if (next instanceof HTMLElement) {
@@ -29,38 +31,39 @@ export function KeyValueEditor({ rows, onChange, keyPlaceholder, valuePlaceholde
     }
   }
   return (
-    <div className="kv">
+    <div className="space-y-2">
       {rows.map((row) => (
-        <div className="kv-row" key={row.id}>
-          <input
-            className="mono"
+        <div key={row.id} data-kv-row className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] gap-2">
+          <Input
+            className="font-mono"
             value={row.key}
             aria-label="Chave"
             placeholder={keyPlaceholder}
             onChange={(event) => update(row.id, { key: event.target.value })}
           />
-          <input
-            className="mono"
+          <Input
+            className="font-mono"
             value={row.value}
             aria-label={`Valor de ${row.key}`}
             placeholder={valuePlaceholder}
             onChange={(event) => update(row.id, { value: event.target.value })}
           />
-          <button
+          <Button
             type="button"
-            className="icon ghost"
+            variant="ghost"
+            size="icon"
             title="Remover linha"
             aria-label="Remover linha"
             onClick={(event) => remove(event, row.id)}
           >
-            ×
-          </button>
+            <XIcon />
+          </Button>
         </div>
       ))}
-      <button type="button" className="small ghost add-row" onClick={() => onChange([...rows, newRow()])}>
+      <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, newRow()])}>
         <PlusIcon />
         Adicionar linha
-      </button>
+      </Button>
     </div>
   );
 }

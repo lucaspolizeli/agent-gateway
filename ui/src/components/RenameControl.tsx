@@ -1,7 +1,10 @@
+import { PencilIcon } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { hintFor } from "../domain/validation.ts";
-import { FieldHint } from "./FieldHint.tsx";
-import { useInlinePrompt } from "./useInlinePrompt.ts";
 
 type Props = {
   current: string;
@@ -11,57 +14,58 @@ type Props = {
 };
 
 export function RenameControl({ current, onRename, validate, disabled }: Props) {
-  const [draft, setDraft] = useState<string | undefined>(undefined);
-  const { trigger, entryRef } = useInlinePrompt(draft !== undefined);
-  if (draft === undefined) {
-    return (
-      <button ref={trigger} type="button" disabled={disabled} onClick={() => setDraft(current)}>
-        Renomear
-      </button>
-    );
-  }
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(current);
   const to = draft.trim();
-  const formatProblem = validate(to);
-  const hint = hintFor(to, formatProblem);
-  const unchanged = to === current;
+  const problem = validate(to);
+  const hint = hintFor(to, problem);
   return (
-    <span
-      className="confirm"
-      role="group"
-      aria-label={`Renomear ${current}`}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          setDraft(undefined);
-        }
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        setDraft(current);
       }}
     >
-      <input
-        ref={entryRef}
-        className="mono"
-        value={draft}
-        aria-label="Novo nome"
-        aria-invalid={hint !== undefined}
-        aria-describedby={hint && "rename-hint"}
-        onChange={(event) => setDraft(event.target.value)}
-      />
-      <FieldHint id="rename-hint" message={hint} />
-      <span>
-        Renomear <b>{current}</b> para <b>{to}</b>?
-      </span>
-      <button
-        type="button"
-        className="primary"
-        disabled={formatProblem !== undefined || unchanged}
-        onClick={() => {
-          setDraft(undefined);
-          onRename(to);
-        }}
-      >
-        Confirmar
-      </button>
-      <button type="button" onClick={() => setDraft(undefined)}>
-        Cancelar
-      </button>
-    </span>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" disabled={disabled}>
+          <PencilIcon />
+          Renomear
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80">
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (problem !== undefined || to === current) {
+              return;
+            }
+            setOpen(false);
+            onRename(to);
+          }}
+        >
+          <Field data-invalid={hint !== undefined}>
+            <FieldLabel htmlFor="rename-input">Renomear {current}</FieldLabel>
+            <Input
+              id="rename-input"
+              className="font-mono"
+              value={draft}
+              aria-invalid={hint !== undefined}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <FieldError>{hint}</FieldError>
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={problem !== undefined || to === current}>
+              Confirmar
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
   );
 }

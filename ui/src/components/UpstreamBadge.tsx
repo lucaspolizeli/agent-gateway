@@ -1,10 +1,11 @@
+import type { ComponentProps } from "react";
+import { Badge } from "@/components/ui/badge";
 import type { UpstreamState } from "../contract.ts";
-import { Badge, type Tone } from "./Badge.tsx";
 
-const tones: Record<UpstreamState["state"], Tone> = {
-  connecting: "accent",
-  ready: "ok",
-  failed: "danger",
+const variants: Record<UpstreamState["state"], ComponentProps<typeof Badge>["variant"]> = {
+  connecting: "warning",
+  ready: "success",
+  failed: "destructive",
 };
 
 function label(upstream: UpstreamState): string {
@@ -19,5 +20,5 @@ function label(upstream: UpstreamState): string {
 }
 
 export function UpstreamBadge({ upstream }: { upstream: UpstreamState }) {
-  return <Badge tone={tones[upstream.state]}>{label(upstream)}</Badge>;
+  return <Badge variant={variants[upstream.state]}>{label(upstream)}</Badge>;
 }

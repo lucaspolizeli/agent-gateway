@@ -1,20 +1,29 @@
+import { RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { focusFirstField } from "./focusFirstField.ts";
 
 export function StaleNotice({ message, onReload }: { message: string; onReload: () => void }) {
   return (
-    <div className="stale-notice" role="status">
-      <span>{message}</span>
-      <button
-        type="button"
-        className="small"
-        onClick={(event) => {
-          const form = event.currentTarget.form;
-          onReload();
-          focusFirstField(form);
-        }}
-      >
-        Recarregar
-      </button>
-    </div>
+    <Alert variant="warning" role="status">
+      <TriangleAlertIcon />
+      <AlertTitle>Mudou fora daqui</AlertTitle>
+      <AlertDescription>{message}</AlertDescription>
+      <AlertAction>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={(event) => {
+            const form = event.currentTarget.closest("form");
+            onReload();
+            focusFirstField(form);
+          }}
+        >
+          <RefreshCwIcon />
+          Recarregar
+        </Button>
+      </AlertAction>
+    </Alert>
   );
 }

@@ -1,3 +1,7 @@
+import { useId } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
 import { toggled } from "../domain/profiles.ts";
 
 type Props = {
@@ -10,29 +14,32 @@ type Props = {
 };
 
 export function CheckboxGroup({ legend, options, selected, onChange, empty, mono }: Props) {
-  let optionClass = "";
-  if (mono === true) {
-    optionClass = "mono";
-  }
+  const id = useId();
   return (
-    <fieldset className="checkbox-group">
-      <legend>
+    <FieldSet className="gap-3 rounded-lg border p-3">
+      <FieldLegend variant="label" className="mb-0 flex w-full items-center justify-between">
         {legend}
-        <span className="checkbox-count">
+        <span className="text-xs font-normal text-muted-foreground tabular-nums">
           {selected.length}/{options.length}
         </span>
-      </legend>
-      {options.length === 0 && <span className="muted small">{empty}</span>}
-      {options.map((option) => (
-        <label key={option} className="check">
-          <input
-            type="checkbox"
-            checked={selected.includes(option)}
-            onChange={(event) => onChange(toggled(selected, option, event.target.checked))}
-          />
-          <span className={optionClass}>{option}</span>
-        </label>
-      ))}
-    </fieldset>
+      </FieldLegend>
+      {options.length === 0 && <FieldDescription>{empty}</FieldDescription>}
+      {options.length > 0 && (
+        <FieldGroup className="gap-2">
+          {options.map((option) => (
+            <Field key={option} orientation="horizontal" className="gap-2">
+              <Checkbox
+                id={`${id}-${option}`}
+                checked={selected.includes(option)}
+                onCheckedChange={(checked) => onChange(toggled(selected, option, checked === true))}
+              />
+              <FieldLabel htmlFor={`${id}-${option}`} className={cn("font-normal", mono === true && "font-mono text-xs")}>
+                {option}
+              </FieldLabel>
+            </Field>
+          ))}
+        </FieldGroup>
+      )}
+    </FieldSet>
   );
 }
