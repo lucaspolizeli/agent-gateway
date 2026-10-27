@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "check:kit": "node scripts/check-ui-kit.mjs",
+    "prebuild": "node scripts/check-ui-kit.mjs",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b"
   },
