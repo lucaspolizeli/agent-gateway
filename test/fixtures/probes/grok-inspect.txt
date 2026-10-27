@@ -1,0 +1,22 @@
+
+  Environment
+  └ Version: 1.0.70 [stable]
+  └ CWD: /Users/me
+
+  Skills (11)
+  └ babysit                                             user [collides with /babysit → /user:babysit]
+  └ deslop                                              user [collides with /deslop → /user:deslop]
+  └ tdd                                                 user [collides with /tdd → /user:tdd]
+  └ teach                                               user [collides with /teach → /user:teach]
+  └ hours-log                                       user [claude]
+  └ pdf                                                 bundled
+  └ babysit                                             plugin: pstack [claude] [collides with /babysit → /pstack:babysit]
+  └ deslop                                              plugin: pstack [claude] [collides with /deslop → /pstack:deslop]
+  └ tdd                                                 plugin: pstack [claude] [collides with /tdd → /pstack:tdd]
+  └ teach                                               plugin: pstack [claude] [collides with /teach → /pstack:teach]
+  └ unslop                                              plugin: pstack [claude]
+
+  Agents (3)
+  └ general-purpose  builtin
+  └ explore          builtin
+  └ plan             builtin

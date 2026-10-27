@@ -17,7 +17,7 @@ type Binding = { profile: string; transport: Transport };
 type State = { projects: Record<string, Binding>; global?: Binding };
 
 /** Skill folders read by each client: Claude Code and Grok read `.claude/skills`, Codex reads `.agents/skills`. */
-const PROJECT_SKILL_DIRS = [".claude/skills", ".agents/skills"];
+export const PROJECT_SKILL_DIRS = [".claude/skills", ".agents/skills"];
 
 export const DEFAULT_PORT = 7820;
 

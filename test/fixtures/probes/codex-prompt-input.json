@@ -1,0 +1,85 @@
+[
+  {
+    "type": "message",
+    "id": "msg_0",
+    "role": "developer",
+    "content": [
+      {
+        "type": "input_text",
+        "text": "<skills_instructions>\n## Skills\nA skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and a short path that can be expanded into an absolute path using the skill roots table.\n### Skill roots\n- `r0` = `/Users/me/.codex/skills`\n- `r1` = `/Users/me/.agents/skills`\n- `r2` = `/Users/me/.codex/skills/.system`\n- `r3` = `/Users/me/.codex/plugins/cache/openai-bundled`\n- `r4` = `/Users/me/.codex/plugins/cache/openai-primary-runtime`\n- `r5` = `/Users/me/.codex/plugins/cache/openai-primary-runtime/spreadsheets/26.905.11957/skills`\n- `r6` = `/Users/me/.codex/plugins/cache/t3-pstack/t3-pstack/2.0.0/skills`\n### Available skills\n- imagegen: Generate or edit raster images when the task benefits from AI-created bitmap visuals such as photos, illustrations, textures, sprites, mockups (file: r2/imagegen/SKILL.md)\n- babysit: Drive an open tester-army/e2e PR through conflicts, review bots, and CI until it is green with every thread handled, then label it Ready for (file: r1/babysit/SKILL.md)\n- find-skills: Helps users discover and install agent skills when they ask questions like \"how do I do X\", \"find a skill for X\", \"is there a skill that can (file: r0/find-skills/SKILL.md)\n- pdf:pdf: Read, create, inspect, render, and verify PDF files where visual layout matters, including fillable AcroForms. Use Poppler rendering plus Py (file: r4/pdf/26.905.11957/skills/pdf/SKILL.md)\n- bank-reconcile: Reconcile a budgeting app against real bank statements through an Open Finance MCP. Use when the user asks for a re (file: r1/bank-reconcile/SKILL.md)\n- spreadsheets:Spreadsheets: Use skill when user requests to create, modify, analyze, visualize, or work with spreadsheet files (`.xlsx`, `.xls`, `.csv`, `.tsv`) or Googl (file: r5/spreadsheets/SKILL.md)\n- t3-pstack:tdd: Use only when the user explicitly asks for TDD, a failing test, or a regression test, OR when the bug has an obvious cheap local test targ (file: r6/tdd/SKILL.md)\n- tdd: Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions \"red-green-refactor\", or wants integrati (file: r1/tdd/SKILL.md)\n</skills_instructions>"
+      },
+      {
+        "type": "input_text",
+        "text": "<permissions instructions>\nFilesystem sandboxing defines whi"
+      },
+      {
+        "type": "input_text",
+        "text": "<recommended_plugins>\nHere is a list of plugins that are ava"
+      }
+    ],
+    "internal_chat_message_metadata_passthrough": {
+      "turn_id": "auto-compact-0",
+      "create_time": 1793071619.910324,
+      "content_item_kinds": [
+        "host_skills.instructions",
+        "permissions.instructions",
+        "plugins.recommendations"
+      ],
+      "content_item_metadata": [
+        {
+          "provenance": {
+            "type": "skills"
+          }
+        },
+        {
+          "provenance": {
+            "type": "harness",
+            "hook": false
+          }
+        },
+        {
+          "provenance": {
+            "type": "harness",
+            "hook": false
+          }
+        }
+      ]
+    }
+  },
+  {
+    "type": "message",
+    "id": "msg_0",
+    "role": "user",
+    "content": [
+      {
+        "type": "input_text",
+        "text": "# AGENTS.md instructions\n\n<INSTRUCTIONS>\n# Engineering Guide"
+      },
+      {
+        "type": "input_text",
+        "text": "<environment_context>\n  <cwd>/Users/me</cwd>\n  <s"
+      }
+    ],
+    "internal_chat_message_metadata_passthrough": {
+      "turn_id": "auto-compact-0",
+      "create_time": 1793071619.910324,
+      "content_item_kinds": [
+        "agents_md.instructions",
+        "environments.environment_context"
+      ],
+      "content_item_metadata": [
+        {
+          "provenance": {
+            "type": "agents_md"
+          }
+        },
+        {
+          "provenance": {
+            "type": "harness",
+            "hook": false
+          }
+        }
+      ]
+    }
+  }
+]

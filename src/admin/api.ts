@@ -6,6 +6,7 @@ import { loadConfig, ServerSchema, slug, writeConfig } from "../config.ts";
 import { describeIssues, errorMessage, HTTP_STATUS, UserError } from "../errors.ts";
 import type { GatewayPool } from "../pool.ts";
 import { installedProfiles, installProject, listProjects, relinkSkills, syncAll, uninstallProject, unsafeProjectDir } from "../project.ts";
+import { runSkillsDoctor } from "../skills-doctor.ts";
 import { listUserSkills, SKILL_NAME } from "../user-skills.ts";
 import type { ApiError, ProjectApplyResult, ProjectView, SyncResult } from "./contract.ts";
 import { applyEdit, ConfigEditSchema } from "./edits.ts";
@@ -41,16 +42,16 @@ const skillName = z.string().regex(SKILL_NAME, "use letras, dígitos, '.', '_' e
 const skillParams = z.object({ set: slug, name: skillName });
 const profileParam = z.object({ name: slug });
 const secretParams = z.object({ profile: slug, key: z.string().regex(SECRET_KEY, "use letras, dígitos e '_', sem começar com dígito") });
-const directory = z
+const existingDirectory = z
   .string()
   .refine(isAbsolute, "precisa ser um caminho absoluto")
-  .refine((dir) => existsSync(dir) && statSync(dir).isDirectory(), "precisa ser uma pasta existente")
-  .superRefine((dir, ctx) => {
-    const problem = unsafeProjectDir(dir);
-    if (problem !== undefined) {
-      ctx.addIssue({ code: "custom", message: problem });
-    }
-  });
+  .refine((dir) => existsSync(dir) && statSync(dir).isDirectory(), "precisa ser uma pasta existente");
+const directory = existingDirectory.superRefine((dir, ctx) => {
+  const problem = unsafeProjectDir(dir);
+  if (problem !== undefined) {
+    ctx.addIssue({ code: "custom", message: problem });
+  }
+});
 
 function route<P, B>(
   method: Method,
@@ -185,6 +186,13 @@ function routes({ home, port, pool }: AdminContext): Route[] {
 
     route("GET", "/api/skills/user", { params: noParams, body: noBody }, () =>
       listUserSkills(home).map(({ name, description, origin }) => ({ name, description, origin })),
+    ),
+
+    route(
+      "POST",
+      "/api/skills/doctor",
+      { params: noParams, body: z.object({ dir: existingDirectory.optional() }).strict().optional() },
+      ({ body }) => runSkillsDoctor(home, body?.dir),
     ),
 
     route(

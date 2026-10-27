@@ -399,6 +399,22 @@ test("skills the skills CLI installed are listed with their source and are never
   rmSync(join(claudeSkills, "mine"), { recursive: true });
 });
 
+test("the doctor reports a CLI whose probe fails as seeing no skill", async () => {
+  const report = await api<{ dir: string | null; probes: Record<string, { ok: boolean }>; rows: Array<{ name: string; visible: Record<string, boolean> }> }>(
+    "POST",
+    "/api/skills/doctor",
+    { dir: project },
+  );
+  assert.equal(report.dir, project);
+  assert.deepEqual(Object.values(report.probes).map((probe) => probe.ok), [false, false, false]);
+  assert.ok(report.rows.length > 0);
+  for (const row of report.rows) {
+    assert.deepEqual(row.visible, { claude: false, codex: false, grok: false }, row.name);
+  }
+  assert.equal((await call("POST", "/api/skills/doctor", { body: { dir: "relative/dir" } })).status, 400);
+  assert.equal((await api<{ dir: string | null }>("POST", "/api/skills/doctor")).dir, null);
+});
+
 test("the UI is served without the token, and refuses to be framed", async () => {
   const missing = await call("GET", "/ui/");
   assert.equal(missing.status, 503);
