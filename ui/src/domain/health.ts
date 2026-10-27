@@ -81,3 +81,28 @@ export function profileState(status: ProfileStatus | undefined): ProfileState {
   }
   return "running";
 }
+
+export type ReconnectOutcome =
+  | { kind: "ready" }
+  | { kind: "connecting" }
+  | { kind: "failed"; error: string }
+  | { kind: "missing" };
+
+/** Reconnect answers with the whole profile status: the request only succeeded if this upstream is `ready`. */
+export function reconnectOutcome(status: ProfileStatus, server: string): ReconnectOutcome {
+  const upstream = status.upstreams.find((candidate) => candidate.server === server);
+  if (upstream === undefined) {
+    return { kind: "missing" };
+  }
+  if (upstream.state === "failed") {
+    return { kind: "failed", error: upstream.error };
+  }
+  return { kind: upstream.state };
+}
+
+const MISSING_SECRET = /Missing secret \$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+
+/** The `${KEY}` names a failed upstream reports as missing, so its error can link to where they are defined. */
+export function missingSecretKeys(error: string): string[] {
+  return [...new Set([...error.matchAll(MISSING_SECRET)].map((match) => match[1] ?? ""))].filter((key) => key !== "");
+}

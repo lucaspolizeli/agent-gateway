@@ -1,32 +1,57 @@
 import { useState } from "react";
+import { hintFor } from "../domain/validation.ts";
+import { FieldHint } from "./FieldHint.tsx";
+import { useInlinePrompt } from "./useInlinePrompt.ts";
 
 type Props = {
   current: string;
   onRename: (to: string) => void;
+  validate: (to: string) => string | undefined;
   disabled?: boolean;
 };
 
-export function RenameControl({ current, onRename, disabled }: Props) {
+export function RenameControl({ current, onRename, validate, disabled }: Props) {
   const [draft, setDraft] = useState<string | undefined>(undefined);
+  const { trigger, entryRef } = useInlinePrompt(draft !== undefined);
   if (draft === undefined) {
     return (
-      <button type="button" disabled={disabled} onClick={() => setDraft(current)}>
+      <button ref={trigger} type="button" disabled={disabled} onClick={() => setDraft(current)}>
         Renomear
       </button>
     );
   }
   const to = draft.trim();
-  const valid = to !== "" && to !== current;
+  const formatProblem = validate(to);
+  const hint = hintFor(to, formatProblem);
+  const unchanged = to === current;
   return (
-    <span className="confirm">
-      <input className="mono" value={draft} autoFocus onChange={(event) => setDraft(event.target.value)} />
+    <span
+      className="confirm"
+      role="group"
+      aria-label={`Renomear ${current}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          setDraft(undefined);
+        }
+      }}
+    >
+      <input
+        ref={entryRef}
+        className="mono"
+        value={draft}
+        aria-label="Novo nome"
+        aria-invalid={hint !== undefined}
+        aria-describedby={hint && "rename-hint"}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <FieldHint id="rename-hint" message={hint} />
       <span>
         Renomear <b>{current}</b> para <b>{to}</b>?
       </span>
       <button
         type="button"
         className="primary"
-        disabled={!valid}
+        disabled={formatProblem !== undefined || unchanged}
         onClick={() => {
           setDraft(undefined);
           onRename(to);

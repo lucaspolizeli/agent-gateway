@@ -1,8 +1,23 @@
 import type { ReactNode } from "react";
 
+type Props = {
+  messages: ReactNode;
+  children: ReactNode;
+  className?: string;
+};
+
 /** Sticks to the bottom of the scrolling detail so saving never needs a scroll. */
-export function ActionBar({ children }: { children: ReactNode }) {
-  return <div className="action-bar">{children}</div>;
+export function ActionBar({ messages, children, className }: Props) {
+  let barClass = "action-bar";
+  if (className !== undefined) {
+    barClass = `action-bar ${className}`;
+  }
+  return (
+    <div className={barClass}>
+      <div className="action-bar-messages">{messages}</div>
+      <div className="action-bar-actions">{children}</div>
+    </div>
+  );
 }
 
 export function DirtyIndicator({ dirty }: { dirty: boolean }) {

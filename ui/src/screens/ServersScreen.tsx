@@ -16,6 +16,13 @@ export function ServersScreen({ selected }: { selected?: string }) {
   const config = useConfig();
   const health = useGatewayHealth();
   const [creating, setCreating] = useState(false);
+  const [seenServer, setSeenServer] = useState(selected);
+  if (seenServer !== selected) {
+    setSeenServer(selected);
+    if (selected !== undefined) {
+      setCreating(false);
+    }
+  }
   return (
     <section>
       <PageHeader
@@ -26,8 +33,9 @@ export function ServersScreen({ selected }: { selected?: string }) {
             type="button"
             className="primary"
             onClick={() => {
-              setCreating(true);
-              navigate({ screen: "servers" });
+              if (navigate({ screen: "servers" })) {
+                setCreating(true);
+              }
             }}
           >
             <PlusIcon />
@@ -43,14 +51,13 @@ export function ServersScreen({ selected }: { selected?: string }) {
               health={serverHealth([...health.statuses.values()])}
               selected={selected}
               creating={creating}
-              onSelect={() => setCreating(false)}
             />
             <EditorPane
               config={data}
               target={editorTarget(data, creating, selected)}
               onCreated={(name) => {
                 setCreating(false);
-                navigate({ screen: "servers", server: name });
+                navigate({ screen: "servers", server: name }, { confirmed: true });
               }}
             />
           </div>
@@ -86,10 +93,9 @@ type ListProps = {
   health: Map<string, Health>;
   selected?: string;
   creating: boolean;
-  onSelect: () => void;
 };
 
-function ServerList({ config, health, selected, creating, onSelect }: ListProps) {
+function ServerList({ config, health, selected, creating }: ListProps) {
   const names = Object.keys(config.servers).sort();
   return (
     <nav className="master" aria-label="Servidores">
@@ -105,7 +111,6 @@ function ServerList({ config, health, selected, creating, onSelect }: ListProps)
             className="master-item"
             aria-current={!creating && name === selected && "page"}
             href={hrefFor({ screen: "servers", server: name })}
-            onClick={onSelect}
           >
             <span className="master-item-title">
               <StatusDot health={health.get(name) ?? "unknown"} />

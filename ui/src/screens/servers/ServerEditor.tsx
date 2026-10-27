@@ -1,20 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ConfigEdit, ServerSpec } from "../../contract.ts";
 import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
 import { Badge } from "../../components/Badge.tsx";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
+import { FieldHint } from "../../components/FieldHint.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { RenameControl } from "../../components/RenameControl.tsx";
+import { StaleNotice } from "../../components/StaleNotice.tsx";
 import {
   emptyForms,
+  emptySpec,
   formFromSpec,
   formProblems,
+  sameSpec,
   specFromForm,
   type ServerForm,
   type ServerKind,
 } from "../../domain/serverForm.ts";
+import { hintFor, serverNameProblem } from "../../domain/validation.ts";
 import { hrefFor, navigate } from "../../router.ts";
 import { useConfigEdit, useServerTest } from "../../state/config.ts";
+import { useSyncedDraft } from "../../state/syncedDraft.ts";
+import { confirmLeave, useUnsavedGuard } from "../../state/unsaved.ts";
 import { AdvancedFields, ConnectionFields, VariablesFields } from "./ServerFields.tsx";
 import { TestControls, TestResultView } from "./ServerTestPanel.tsx";
 
@@ -33,16 +40,34 @@ type Props = {
 const kindLabels: Record<ServerKind, string> = { stdio: "stdio · processo local", http: "http · remoto" };
 const variablesTitles: Record<ServerKind, string> = { stdio: "Ambiente", http: "Headers" };
 
-function initialForm(target: EditorTarget): ServerForm {
+function sourceOf(target: EditorTarget): ServerSpec {
   if (target.kind === "existing") {
-    return formFromSpec(target.spec);
+    return target.spec;
+  }
+  return emptySpec;
+}
+
+function formOf(target: EditorTarget, source: ServerSpec): ServerForm {
+  if (target.kind === "existing") {
+    return formFromSpec(source);
   }
   return emptyForms.stdio();
 }
 
 export function ServerEditor({ target, profiles, usedBy, existingNames, onCreated }: Props) {
   const [name, setName] = useState("");
-  const [form, setForm] = useState(() => initialForm(target));
+  const {
+    draft: form,
+    setDraft: setForm,
+    dirty: formDirty,
+    stale,
+    reload,
+  } = useSyncedDraft({
+    source: sourceOf(target),
+    toDraft: (source: ServerSpec) => formOf(target, source),
+    matches: (draft: ServerForm, source: ServerSpec) => sameSpec(specFromForm(draft), source),
+    same: sameSpec,
+  });
   const [testProfile, setTestProfile] = useState(usedBy[0] ?? profiles[0] ?? "");
   const save = useConfigEdit();
   const test = useServerTest();
@@ -51,16 +76,25 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
   const specProblems = formProblems(form);
   const problems = [...specProblems];
   const newName = name.trim();
-  if (target.kind === "new" && newName === "") {
-    problems.unshift("Informe o nome.");
+  let nameProblem: string | undefined = undefined;
+  if (target.kind === "new") {
+    nameProblem = serverNameProblem(newName);
   }
-  if (target.kind === "new" && existingNames.includes(newName)) {
-    problems.unshift(`Já existe um servidor chamado ${newName}.`);
+  if (target.kind === "new" && nameProblem === undefined && existingNames.includes(newName)) {
+    nameProblem = `Já existe um servidor chamado ${newName}.`;
   }
-  let dirty = true;
-  if (target.kind === "existing") {
-    dirty = JSON.stringify(spec) !== JSON.stringify(target.spec);
+  if (nameProblem !== undefined) {
+    problems.unshift(nameProblem);
   }
+  const nameHint = hintFor(newName, nameProblem);
+  const dirty = formDirty || (target.kind === "new" && newName !== "");
+  useUnsavedGuard(dirty);
+  const saveable = problems.length === 0 && (target.kind === "new" || formDirty) && !save.isPending;
+  const { reset: resetTest } = test;
+  const specKey = JSON.stringify(spec);
+  useEffect(() => {
+    resetTest();
+  }, [specKey, resetTest]);
 
   function submit() {
     if (target.kind === "existing") {
@@ -87,6 +121,7 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
       }}
     >
       {target.kind === "existing" && <ExistingHeader name={target.name} kind={form.kind} usedBy={usedBy} />}
+      {stale && <StaleNotice message="O servidor mudou fora daqui. Recarregar?" onReload={reload} />}
       {target.kind === "new" && (
         <header className="detail-header">
           <div className="detail-title">
@@ -106,8 +141,11 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
               value={name}
               autoFocus
               placeholder="meu-servidor"
+              aria-invalid={nameHint !== undefined}
+              aria-describedby={nameHint && "server-name-hint"}
               onChange={(event) => setName(event.target.value)}
             />
+            <FieldHint id="server-name-hint" message={nameHint} />
           </label>
         )}
         <div className="segmented" role="radiogroup" aria-label="Transporte">
@@ -150,10 +188,14 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
         </section>
       )}
 
-      <ActionBar>
-        <BarStatus problems={problems} dirty={dirty} isNew={target.kind === "new"} />
-        <MutationStatus mutation={save} />
-        <span className="spacer" />
+      <ActionBar
+        messages={
+          <>
+            <BarStatus problems={problems} dirty={dirty} isNew={target.kind === "new"} />
+            <MutationStatus mutation={save} />
+          </>
+        }
+      >
         <TestControls
           profiles={profiles}
           profile={testProfile}
@@ -161,8 +203,7 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
           disabled={specProblems.length > 0 || test.isPending}
           onRun={runTest}
         />
-        <span className="action-bar-divider" />
-        <button type="submit" className="primary" disabled={problems.length > 0 || !dirty || save.isPending}>
+        <button type="submit" className="primary" disabled={!saveable}>
           Salvar
         </button>
       </ActionBar>
@@ -183,8 +224,8 @@ function BarStatus({ problems, dirty, isNew }: { problems: string[]; dirty: bool
 type HeaderProps = { name: string; kind: ServerKind; usedBy: string[] };
 
 function ExistingHeader({ name, kind, usedBy }: HeaderProps) {
-  const remove = useConfigEdit(() => navigate({ screen: "servers" }));
-  const rename = useConfigEdit<RenameServer>((edit) => navigate({ screen: "servers", server: edit.to }));
+  const remove = useConfigEdit(() => navigate({ screen: "servers" }, { confirmed: true }));
+  const rename = useConfigEdit<RenameServer>((edit) => navigate({ screen: "servers", server: edit.to }, { confirmed: true }));
   return (
     <header className="detail-header">
       <div className="detail-title">
@@ -207,14 +248,23 @@ function ExistingHeader({ name, kind, usedBy }: HeaderProps) {
       <MutationStatus mutation={remove} success="Removido." />
       <RenameControl
         current={name}
+        validate={serverNameProblem}
         disabled={rename.isPending}
-        onRename={(to) => rename.mutate({ op: "renameServer", from: name, to })}
+        onRename={(to) => {
+          if (confirmLeave()) {
+            rename.mutate({ op: "renameServer", from: name, to });
+          }
+        }}
       />
       <ConfirmButton
         label="Remover"
         question={`Remover ${name} de todos os perfis?`}
         disabled={remove.isPending}
-        onConfirm={() => remove.mutate({ op: "removeServer", name })}
+        onConfirm={() => {
+          if (confirmLeave()) {
+            remove.mutate({ op: "removeServer", name });
+          }
+        }}
       />
     </header>
   );

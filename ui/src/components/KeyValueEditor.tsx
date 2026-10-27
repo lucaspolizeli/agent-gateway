@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { newRow, type KeyValueRow } from "../domain/keyValueRows.ts";
 import { PlusIcon } from "./Icons.tsx";
 
@@ -18,6 +19,14 @@ export function KeyValueEditor({ rows, onChange, keyPlaceholder, valuePlaceholde
         return { ...row, ...patch };
       }),
     );
+  }
+  function remove(event: MouseEvent<HTMLButtonElement>, id: number) {
+    const row = event.currentTarget.closest(".kv-row");
+    const next = row?.nextElementSibling ?? row?.previousElementSibling;
+    onChange(rows.filter((other) => other.id !== id));
+    if (next instanceof HTMLElement) {
+      (next.querySelector("input") ?? next).focus();
+    }
   }
   return (
     <div className="kv">
@@ -42,7 +51,7 @@ export function KeyValueEditor({ rows, onChange, keyPlaceholder, valuePlaceholde
             className="icon ghost"
             title="Remover linha"
             aria-label="Remover linha"
-            onClick={() => onChange(rows.filter((other) => other.id !== row.id))}
+            onClick={(event) => remove(event, row.id)}
           >
             ×
           </button>

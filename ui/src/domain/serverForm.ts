@@ -21,6 +21,13 @@ export type HttpForm = {
 
 export type ServerForm = StdioForm | HttpForm;
 
+/** What a server that has not been saved yet is measured against. */
+export const emptySpec: StdioServerSpec = { command: "", args: [], env: {} };
+
+export function sameSpec(a: ServerSpec, b: ServerSpec): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export function serverKind(spec: ServerSpec): ServerKind {
   if ("url" in spec) {
     return "http";

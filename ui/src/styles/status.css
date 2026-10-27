@@ -58,6 +58,7 @@
 }
 .attention-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -79,7 +80,7 @@
   color: var(--warning);
 }
 .attention-body {
-  flex: 1;
+  flex: 1 1 240px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -92,11 +93,10 @@
   font-weight: var(--weight-medium);
 }
 .attention-error {
+  max-height: 9em;
+  overflow: auto;
   color: var(--danger);
   font-size: var(--text-xs);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .attention-empty {
   display: flex;
@@ -148,18 +148,20 @@
 }
 .profile-card-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
   min-height: 36px;
-  padding: 0 var(--space-4);
+  padding: var(--space-2) var(--space-4);
   border-top: 1px solid var(--border);
 }
 
 .stopped-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  height: 52px;
+  gap: var(--space-1) var(--space-3);
+  min-height: 52px;
   padding: 0 var(--space-4);
   border-top: 1px solid var(--border);
 }
@@ -168,4 +170,7 @@
 }
 .stopped-servers {
   max-width: 360px;
+}
+.stopped-row > button {
+  margin-left: auto;
 }

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { adminToken } from "./api/token.ts";
 import { Sidebar, type NavCount } from "./components/Sidebar.tsx";
 import { useRoute, type Route, type Screen } from "./router.ts";
@@ -27,18 +27,28 @@ function renderScreen(route: Route): ReactNode {
   }
 }
 
+function Shell({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
+  const main = useRef<HTMLElement>(null);
+  return (
+    <div className="app">
+      <button type="button" className="skip-link" onClick={() => main.current?.focus()}>
+        Pular para o conteúdo
+      </button>
+      {sidebar}
+      <main className="main" ref={main} tabIndex={-1}>
+        <div className="content">{children}</div>
+      </main>
+    </div>
+  );
+}
+
 export function App() {
   const route = useRoute();
   if (adminToken() === undefined) {
     return (
-      <div className="app">
-        <Sidebar current={route.screen} counts={{}} />
-        <main className="main">
-          <div className="content">
-            <MissingTokenBanner />
-          </div>
-        </main>
-      </div>
+      <Shell sidebar={<Sidebar current={route.screen} counts={{}} />}>
+        <MissingTokenBanner />
+      </Shell>
     );
   }
   return <ConnectedApp route={route} />;
@@ -65,12 +75,9 @@ function ConnectedApp({ route }: { route: Route }) {
     summary = health.summary;
   }
   return (
-    <div className="app">
-      <Sidebar current={route.screen} counts={counts} health={summary} />
-      <main className="main">
-        <div className="content">{renderScreen(route)}</div>
-      </main>
-    </div>
+    <Shell sidebar={<Sidebar current={route.screen} counts={counts} health={summary} />}>
+      {renderScreen(route)}
+    </Shell>
   );
 }
 

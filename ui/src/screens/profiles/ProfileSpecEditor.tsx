@@ -1,10 +1,13 @@
-import { useState } from "react";
 import type { GatewayConfig, ProfileSpec, ResolvedProfileView } from "../../contract.ts";
 import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
+import { focusFirstField } from "../../components/focusFirstField.ts";
 import { CheckboxGroup } from "../../components/CheckboxGroup.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
+import { StaleNotice } from "../../components/StaleNotice.tsx";
 import { descendantsOf, sameProfileSpec } from "../../domain/profiles.ts";
 import { useConfigEdit } from "../../state/config.ts";
+import { useSyncedDraft } from "../../state/syncedDraft.ts";
+import { useUnsavedGuard } from "../../state/unsaved.ts";
 import { ResolvedPanel } from "./ResolvedPanel.tsx";
 
 type Props = {
@@ -16,14 +19,19 @@ type Props = {
 };
 
 export function ProfileSpecEditor({ name, spec, config, view, skillSets }: Props) {
-  const [draft, setDraft] = useState(spec);
+  const { draft, setDraft, dirty, stale, reload } = useSyncedDraft({
+    source: spec,
+    toDraft: (source: ProfileSpec) => source,
+    matches: sameProfileSpec,
+    same: sameProfileSpec,
+  });
+  useUnsavedGuard(dirty);
   const save = useConfigEdit();
   const descendants = descendantsOf(name, config.profiles);
   const parentOptions = Object.keys(config.profiles)
     .filter((profile) => profile !== name && !descendants.has(profile))
     .sort();
   const skillOptions = [...new Set([...skillSets, ...draft.skills])].sort();
-  const dirty = !sameProfileSpec(draft, spec);
 
   return (
     <form
@@ -33,6 +41,7 @@ export function ProfileSpecEditor({ name, spec, config, view, skillSets }: Props
         save.mutate({ op: "upsertProfile", name, profile: { ...draft, hiddenTools: spec.hiddenTools } });
       }}
     >
+      {stale && <StaleNotice message="O perfil mudou fora daqui. Recarregar?" onReload={reload} />}
       <section className="section">
         <h3 className="section-title">Herança e recursos</h3>
         <p className="section-hint">O que este perfil herda e acrescenta. Os itens dos perfis pais entram sozinhos.</p>
@@ -67,12 +76,23 @@ export function ProfileSpecEditor({ name, spec, config, view, skillSets }: Props
         {view === undefined && <p className="muted">Visão resolvida indisponível.</p>}
         {view !== undefined && <ResolvedPanel view={view} />}
       </section>
-      <ActionBar>
-        <DirtyIndicator dirty={dirty} />
-        <MutationStatus mutation={save} />
-        <span className="spacer" />
+      <ActionBar
+        messages={
+          <>
+            <DirtyIndicator dirty={dirty} />
+            <MutationStatus mutation={save} />
+          </>
+        }
+      >
         {dirty && (
-          <button type="button" onClick={() => setDraft(spec)}>
+          <button
+            type="button"
+            onClick={(event) => {
+              const form = event.currentTarget.form;
+              reload();
+              focusFirstField(form);
+            }}
+          >
             Descartar
           </button>
         )}

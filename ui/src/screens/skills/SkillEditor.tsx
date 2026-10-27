@@ -1,12 +1,16 @@
 import { useState, type KeyboardEvent } from "react";
 import type { SkillDocument } from "../../contract.ts";
-import { DirtyIndicator } from "../../components/ActionBar.tsx";
+import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
+import { focusFirstField } from "../../components/focusFirstField.ts";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
 import { ChevronIcon } from "../../components/Icons.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { QueryState } from "../../components/QueryState.tsx";
+import { StaleNotice } from "../../components/StaleNotice.tsx";
 import { hrefFor, navigate } from "../../router.ts";
 import { useDeleteSkill, useMoveSkill, useSaveSkill, useSkill } from "../../state/skills.ts";
+import { useSyncedDraft } from "../../state/syncedDraft.ts";
+import { confirmLeave, useUnsavedGuard } from "../../state/unsaved.ts";
 
 type Props = { set: string; name: string; setNames: string[] };
 
@@ -30,9 +34,20 @@ function isSaveShortcut(event: KeyboardEvent): boolean {
 }
 
 function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[] }) {
-  const [content, setContent] = useState(doc.content);
+  const {
+    draft: content,
+    setDraft: setContent,
+    dirty,
+    stale,
+    reload,
+  } = useSyncedDraft({
+    source: doc.content,
+    toDraft: (source: string) => source,
+    matches: (draft: string, source: string) => draft === source,
+    same: (a: string, b: string) => a === b,
+  });
+  useUnsavedGuard(dirty);
   const save = useSaveSkill();
-  const dirty = content !== doc.content;
 
   function submit() {
     if (dirty && !save.isPending) {
@@ -66,6 +81,7 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
         <MoveControl doc={doc} setNames={setNames} />
         <DeleteControl doc={doc} />
       </header>
+      {stale && <StaleNotice message="A skill mudou fora daqui. Recarregar?" onReload={reload} />}
       <textarea
         className="mono skill-textarea"
         aria-label={`Conteúdo de ${doc.name}/SKILL.md`}
@@ -73,16 +89,32 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
         value={content}
         onChange={(event) => setContent(event.target.value)}
       />
-      <footer className="action-bar editor-footer">
-        <DirtyIndicator dirty={dirty} />
-        <MutationStatus mutation={save} />
-        <span className="muted small files-line truncate">
-          {doc.files.length === 0 && "Sem outros arquivos"}
-          {doc.files.length > 0 && <>Outros arquivos: <span className="mono">{doc.files.join(", ")}</span></>}
-        </span>
-        <span className="spacer" />
+      <ActionBar
+        className="editor-footer"
+        messages={
+          <>
+            <DirtyIndicator dirty={dirty} />
+            <MutationStatus mutation={save} />
+            <span className="muted small files-line">
+              {doc.files.length === 0 && "Sem outros arquivos"}
+              {doc.files.length > 0 && (
+                <>
+                  Outros arquivos: <span className="mono">{doc.files.join(", ")}</span>
+                </>
+              )}
+            </span>
+          </>
+        }
+      >
         {dirty && (
-          <button type="button" onClick={() => setContent(doc.content)}>
+          <button
+            type="button"
+            onClick={(event) => {
+              const form = event.currentTarget.form;
+              reload();
+              focusFirstField(form);
+            }}
+          >
             Descartar
           </button>
         )}
@@ -90,7 +122,7 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
           Salvar
           <kbd className="kbd">{saveShortcut}</kbd>
         </button>
-      </footer>
+      </ActionBar>
     </form>
   );
 }
@@ -98,7 +130,7 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
 function MoveControl({ doc, setNames }: { doc: SkillDocument; setNames: string[] }) {
   const targets = setNames.filter((set) => set !== doc.set);
   const [toSet, setToSet] = useState(targets[0] ?? "");
-  const move = useMoveSkill((vars) => navigate({ screen: "skills", set: vars.toSet, skill: vars.name }));
+  const move = useMoveSkill((vars) => navigate({ screen: "skills", set: vars.toSet, skill: vars.name }, { confirmed: true }));
   if (targets.length === 0) {
     return null;
   }
@@ -116,7 +148,11 @@ function MoveControl({ doc, setNames }: { doc: SkillDocument; setNames: string[]
       <button
         type="button"
         disabled={toSet === "" || move.isPending}
-        onClick={() => move.mutate({ set: doc.set, name: doc.name, toSet })}
+        onClick={() => {
+          if (confirmLeave()) {
+            move.mutate({ set: doc.set, name: doc.name, toSet });
+          }
+        }}
       >
         Mover
       </button>
@@ -125,14 +161,18 @@ function MoveControl({ doc, setNames }: { doc: SkillDocument; setNames: string[]
 }
 
 function DeleteControl({ doc }: { doc: SkillDocument }) {
-  const remove = useDeleteSkill((vars) => navigate({ screen: "skills", set: vars.set }));
+  const remove = useDeleteSkill((vars) => navigate({ screen: "skills", set: vars.set }, { confirmed: true }));
   return (
     <>
       <ConfirmButton
         label="Excluir"
         question={`Excluir ${doc.name} e todos os arquivos?`}
         disabled={remove.isPending}
-        onConfirm={() => remove.mutate({ set: doc.set, name: doc.name })}
+        onConfirm={() => {
+          if (confirmLeave()) {
+            remove.mutate({ set: doc.set, name: doc.name });
+          }
+        }}
       />
       <MutationStatus mutation={remove} success="Excluída." />
     </>

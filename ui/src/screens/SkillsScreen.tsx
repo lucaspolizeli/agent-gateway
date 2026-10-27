@@ -36,7 +36,7 @@ export function SkillsScreen({ set, skill }: Props) {
                 </>
               }
             >
-              {() => <ImportPanel sets={data} />}
+              {(close) => <ImportPanel sets={data} onNavigate={close} />}
             </Popover>
             <Popover title="Novo conjunto" label="Novo conjunto">
               {(close) => <NewSetForm sets={data} onDone={close} />}

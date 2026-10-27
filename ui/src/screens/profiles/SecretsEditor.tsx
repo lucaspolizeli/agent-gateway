@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Badge } from "../../components/Badge.tsx";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
+import { FieldHint } from "../../components/FieldHint.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { QueryState } from "../../components/QueryState.tsx";
+import { useInlinePrompt } from "../../components/useInlinePrompt.ts";
+import { hintFor, secretKeyProblem } from "../../domain/validation.ts";
 import { useDeleteSecret, useSecrets, useSetSecret } from "../../state/secrets.ts";
 
 /** Write-only: values are typed into password inputs and never read back from the API. */
@@ -20,16 +23,18 @@ export function SecretsEditor({ profile, missing }: { profile: string; missing: 
           {(views) => {
             const keys = [...(views.find((view) => view.profile === profile)?.keys ?? [])].sort();
             const absent = missing.filter((key) => !keys.includes(key)).sort();
+            // One list keyed by name: a secret that gets defined stays the same row, so its "Salvo." is still on screen.
+            const rows = [
+              ...absent.map((key) => ({ key, missing: true })),
+              ...keys.map((key) => ({ key, missing: false })),
+            ];
             return (
               <>
                 <ul className="secret-list">
-                  {absent.map((key) => (
-                    <SecretRow key={`missing:${key}`} profile={profile} secretKey={key} missing />
+                  {rows.map((row) => (
+                    <SecretRow key={row.key} profile={profile} secretKey={row.key} missing={row.missing} />
                   ))}
-                  {keys.map((key) => (
-                    <SecretRow key={key} profile={profile} secretKey={key} missing={false} />
-                  ))}
-                  {keys.length === 0 && absent.length === 0 && (
+                  {rows.length === 0 && (
                     <li className="secret-empty muted">Nenhum segredo neste perfil.</li>
                   )}
                 </ul>
@@ -50,12 +55,13 @@ function SecretRow({ profile, secretKey, missing }: RowProps) {
   const [value, setValue] = useState("");
   const set = useSetSecret();
   const remove = useDeleteSecret();
+  const { trigger, entryRef } = useInlinePrompt(editing);
   let editLabel = "Substituir";
   if (missing) {
     editLabel = "Definir";
   }
   return (
-    <li className="secret-row" data-missing={missing}>
+    <li className="secret-row" data-missing={missing} data-feedback-scope>
       <span className="mono secret-key">{secretKey}</span>
       {missing && <Badge tone="warn">faltando</Badge>}
       {!missing && <Badge tone="ok">definido</Badge>}
@@ -81,7 +87,7 @@ function SecretRow({ profile, secretKey, missing }: RowProps) {
           <input
             type="password"
             autoComplete="new-password"
-            autoFocus
+            ref={entryRef}
             aria-label={`Valor de ${secretKey}`}
             placeholder="valor"
             value={value}
@@ -101,7 +107,7 @@ function SecretRow({ profile, secretKey, missing }: RowProps) {
         </form>
       )}
       {!editing && (
-        <button type="button" onClick={() => setEditing(true)}>
+        <button ref={trigger} type="button" onClick={() => setEditing(true)}>
           {editLabel}
         </button>
       )}
@@ -122,6 +128,8 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
   const [value, setValue] = useState("");
   const set = useSetSecret();
   const key = secretKey.trim();
+  const keyProblem = secretKeyProblem(key);
+  const keyHint = hintFor(key, keyProblem);
   return (
     <form
       className="new-secret"
@@ -145,6 +153,8 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
           aria-label="Chave do novo segredo"
           placeholder="CHAVE"
           value={secretKey}
+          aria-invalid={keyHint !== undefined}
+          aria-describedby={keyHint && "secret-key-hint"}
           onChange={(event) => setSecretKey(event.target.value)}
         />
         <input
@@ -156,10 +166,11 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
           value={value}
           onChange={(event) => setValue(event.target.value)}
         />
-        <button type="submit" disabled={key === "" || value === "" || set.isPending}>
+        <button type="submit" disabled={keyProblem !== undefined || value === "" || set.isPending}>
           Adicionar
         </button>
       </div>
+      <FieldHint id="secret-key-hint" message={keyHint} />
       {existing.includes(key) && <span className="muted small">Substitui o valor atual de {key}.</span>}
       <MutationStatus mutation={set} success="Segredo salvo." />
     </form>

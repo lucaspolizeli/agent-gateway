@@ -4,6 +4,7 @@ import { CountBadge } from "../components/CountBadge.tsx";
 import { MutationStatus } from "../components/MutationStatus.tsx";
 import { PageHeader } from "../components/PageHeader.tsx";
 import { QueryState } from "../components/QueryState.tsx";
+import { reconnectRowVerdict, reconnectVerdict } from "../components/reconnectVerdict.ts";
 import { RunningBadge } from "../components/RunningBadge.tsx";
 import { StatusDot } from "../components/StatusDot.tsx";
 import { UpstreamBadge } from "../components/UpstreamBadge.tsx";
@@ -104,8 +105,8 @@ function FailedServerRow({ item }: { item: Extract<AttentionItem, { kind: "faile
           <a href={hrefFor({ screen: "profiles", profile: item.profile })}>{item.profile}</a>
         </div>
         <pre className="attention-error">{item.error}</pre>
+        <MutationStatus mutation={reconnect} verdict={reconnectRowVerdict} />
       </div>
-      <MutationStatus mutation={reconnect} success="Reconectado." />
       <button
         type="button"
         disabled={reconnect.isPending}
@@ -195,7 +196,7 @@ function RunningCard({ view, status }: { view: ResolvedProfileView; status?: Pro
       <footer className="profile-card-footer">
         <span className="muted small">{plural(status?.tools.length ?? 0, "tool exposta", "tools expostas")}</span>
         <span className="spacer" />
-        <MutationStatus mutation={reconnect} success="Reconectado." />
+        <MutationStatus mutation={reconnect} verdict={reconnectVerdict} />
       </footer>
     </article>
   );

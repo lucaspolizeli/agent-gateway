@@ -32,11 +32,17 @@ export function Sidebar({ current, counts, health }: Props) {
       <nav className="nav" aria-label="Seções">
         {items.map((item) => {
           const count = counts[item.screen];
+          let name = item.label;
+          if (count !== undefined && count.count > 0) {
+            name = `${item.label}, ${count.count} ${count.label}`;
+          }
           return (
             <a
               key={item.screen}
               className="nav-item"
               href={hrefFor({ screen: item.screen })}
+              title={item.label}
+              aria-label={name}
               aria-current={item.screen === current && "page"}
             >
               {item.icon}
@@ -61,10 +67,14 @@ function HealthLine({ health }: { health: HealthSummary }) {
   if (health.running === 0) {
     dot = "dot-unknown";
   }
+  let summary = plural(health.running, "perfil rodando", "perfis rodando");
+  if (failing > 0) {
+    summary = `${summary}, ${plural(failing, "falha", "falhas")}`;
+  }
   return (
-    <a className="health-line" href={hrefFor({ screen: "status" })} aria-label="Saúde do gateway">
+    <a className="health-line" href={hrefFor({ screen: "status" })} title={summary} aria-label={`Saúde do gateway: ${summary}`}>
       <span className={`dot ${dot}`} aria-hidden="true" />
-      <span>
+      <span className="health-text" aria-hidden="true">
         {plural(health.running, "perfil rodando", "perfis rodando")}
         {failing > 0 && <span className="health-fail"> · {plural(failing, "falha", "falhas")}</span>}
       </span>

@@ -12,6 +12,7 @@ import "./styles/servers.css";
 import "./styles/profiles.css";
 import "./styles/skills.css";
 import "./styles/projects.css";
+import "./styles/responsive.css";
 
 captureAdminToken();
 

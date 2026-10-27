@@ -97,7 +97,7 @@
   box-shadow: none;
 }
 .files-line {
-  max-width: 320px;
+  overflow-wrap: anywhere;
 }
 .kbd {
   padding: 0 4px;
