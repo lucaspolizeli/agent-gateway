@@ -4,7 +4,7 @@ import type { Config } from "../config.ts";
 import { UserError } from "../errors.ts";
 import { writeFileAtomic } from "../fsutil.ts";
 import { userSkillDirs } from "../project.ts";
-import { GLOBAL_SET } from "../skills.ts";
+import { GLOBAL_SET, parseFrontmatter } from "../skills.ts";
 import type { ImportableSkill, SkillDocument, SkillSet, SkillSummary } from "./contract.ts";
 
 /** Folder names a skill may have: no separators and no leading dot, so a name never leaves its set. */
@@ -45,33 +45,6 @@ function isHubEntry(home: string, path: string, kind: "dir" | "file"): boolean {
   } catch {
     return false;
   }
-}
-
-/** `key: value` pairs of the leading `---` block. Folded (`>`) and literal (`|`) values are joined into one line. */
-export function parseFrontmatter(content: string): Record<string, string> {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
-  if (!match) {
-    return {};
-  }
-  const fields: Record<string, string> = {};
-  let current: string | undefined;
-  for (const line of match[1]!.split(/\r?\n/)) {
-    const field = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
-    if (field) {
-      current = field[1]!;
-      fields[current] = unquote(field[2]!.trim()).replace(/^[>|][-+]?$/, "");
-    } else if (current && /^\s+\S/.test(line)) {
-      fields[current] = `${fields[current]} ${line.trim()}`.trim();
-    }
-  }
-  return fields;
-}
-
-function unquote(value: string): string {
-  if (value.length >= 2 && (value[0] === '"' || value[0] === "'") && value.at(-1) === value[0]) {
-    return value.slice(1, -1);
-  }
-  return value;
 }
 
 function summary(dir: string, set: string): SkillSummary {
