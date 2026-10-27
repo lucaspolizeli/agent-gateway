@@ -2,10 +2,10 @@ import { cn } from "@/lib/utils";
 import type { Health } from "../domain/health.ts";
 
 const labels: Record<Health, string> = {
-  ready: "pronto",
-  connecting: "conectando",
-  failed: "com falha",
-  unknown: "sem status",
+  ready: "ready",
+  connecting: "connecting",
+  failed: "failed",
+  unknown: "no status",
 };
 
 const tones: Record<Health, string> = {

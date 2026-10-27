@@ -23,15 +23,15 @@ export function UnsavedChangesDialog() {
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Descartar alterações não salvas?</AlertDialogTitle>
+          <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
           <AlertDialogDescription>
-            Há edições que ainda não foram salvas. Se continuar, elas se perdem.
+            Some edits are not saved yet. If you leave, they are lost.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+          <AlertDialogCancel>Keep editing</AlertDialogCancel>
           <AlertDialogAction variant="destructive" onClick={() => answer(true)}>
-            Descartar
+            Discard
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

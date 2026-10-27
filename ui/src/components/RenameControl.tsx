@@ -30,7 +30,7 @@ export function RenameControl({ current, onRename, validate, disabled }: Props) 
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" disabled={disabled}>
           <PencilIcon />
-          Renomear
+          Rename
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80">
@@ -46,7 +46,7 @@ export function RenameControl({ current, onRename, validate, disabled }: Props) 
           }}
         >
           <Field data-invalid={hint !== undefined}>
-            <FieldLabel htmlFor="rename-input">Renomear {current}</FieldLabel>
+            <FieldLabel htmlFor="rename-input">Rename {current}</FieldLabel>
             <Input
               id="rename-input"
               className="font-mono"
@@ -58,10 +58,10 @@ export function RenameControl({ current, onRename, validate, disabled }: Props) 
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              Cancelar
+              Cancel
             </Button>
             <Button type="submit" disabled={problem !== undefined || to === current}>
-              Confirmar
+              Rename
             </Button>
           </div>
         </form>

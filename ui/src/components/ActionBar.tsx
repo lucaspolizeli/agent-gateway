@@ -15,7 +15,7 @@ export function ActionBar({ status, children }: { status: ReactNode; children: R
 
 export function DirtyIndicator({ dirty }: { dirty: boolean }) {
   if (!dirty) {
-    return <span className="text-muted-foreground">Sem alterações</span>;
+    return <span className="text-muted-foreground">No changes</span>;
   }
-  return <Badge variant="warning">Alterações não salvas</Badge>;
+  return <Badge variant="warning">Unsaved changes</Badge>;
 }

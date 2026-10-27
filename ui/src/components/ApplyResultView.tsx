@@ -17,7 +17,7 @@ export function ApplyResultView({ result }: { result: ProjectApplyResult }) {
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        skills: {counts.linked} linkadas · {counts.removed} removidas · {counts.skipped} ignoradas
+        skills: {counts.linked} linked · {counts.removed} removed · {counts.skipped} skipped
       </p>
       {result.clients
         .filter((client) => !client.ok)

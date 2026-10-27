@@ -7,7 +7,7 @@ export function StaleNotice({ message, onReload }: { message: string; onReload: 
   return (
     <Alert variant="warning" role="status">
       <TriangleAlertIcon />
-      <AlertTitle>Mudou fora daqui</AlertTitle>
+      <AlertTitle>Changed outside the UI</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
       <AlertAction>
         <Button
@@ -21,7 +21,7 @@ export function StaleNotice({ message, onReload }: { message: string; onReload: 
           }}
         >
           <RefreshCwIcon />
-          Recarregar
+          Reload
         </Button>
       </AlertAction>
     </Alert>

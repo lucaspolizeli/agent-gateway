@@ -21,10 +21,10 @@ export type NavCount = { count: number; attention: boolean; label: string };
 
 const items: Array<{ screen: Screen; label: string; icon: LucideIcon }> = [
   { screen: "status", label: "Status", icon: ActivityIcon },
-  { screen: "servers", label: "Servidores", icon: ServerIcon },
-  { screen: "profiles", label: "Perfis", icon: LayersIcon },
+  { screen: "servers", label: "Servers", icon: ServerIcon },
+  { screen: "profiles", label: "Profiles", icon: LayersIcon },
   { screen: "skills", label: "Skills", icon: BookOpenIcon },
-  { screen: "projects", label: "Projetos", icon: FolderGit2Icon },
+  { screen: "projects", label: "Projects", icon: FolderGit2Icon },
 ];
 
 type Props = {
@@ -53,7 +53,7 @@ export function AppSidebar({ current, counts, health }: Props) {
                 </span>
                 <span className="grid flex-1 text-left leading-tight">
                   <span className="truncate font-semibold">agent-gateway</span>
-                  <span className="truncate text-xs text-muted-foreground">MCP e skills</span>
+                  <span className="truncate text-xs text-muted-foreground">MCP and skills</span>
                 </span>
               </a>
             </SidebarMenuButton>
@@ -63,7 +63,7 @@ export function AppSidebar({ current, counts, health }: Props) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu aria-label="Seções">
+            <SidebarMenu aria-label="Sections">
               {items.map((item) => {
                 const count = counts[item.screen];
                 const name = accessibleName(item.label, count);
@@ -109,15 +109,15 @@ function HealthLine({ health }: { health: HealthSummary }) {
   if (health.running === 0) {
     tone = "bg-muted-foreground";
   }
-  let summary = plural(health.running, "perfil rodando", "perfis rodando");
+  let summary = plural(health.running, "profile running", "profiles running");
   if (failing > 0) {
-    summary = `${summary}, ${plural(failing, "falha", "falhas")}`;
+    summary = `${summary}, ${failing} failed`;
   }
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton asChild tooltip={summary}>
-          <a href={hrefFor(screenHome.status)} aria-label={`Saúde do gateway: ${summary}`}>
+          <a href={hrefFor(screenHome.status)} aria-label={`Gateway health: ${summary}`}>
             <span className="flex size-4 items-center justify-center" aria-hidden="true">
               <span className={cn("size-2 rounded-full", tone)} />
             </span>

@@ -31,7 +31,7 @@ export class ApiRequestError extends Error {
 
 type Method = "GET" | "POST" | "PUT" | "DELETE";
 
-const UNREACHABLE_HINT = "API do agw indisponível. O `agw serve` está rodando?";
+const UNREACHABLE_HINT = "The agw API is unreachable. Check that `agw serve` is running.";
 
 function isApiError(value: unknown): value is ApiError {
   return typeof value === "object" && value !== null && typeof (value as ApiError).error === "string";
@@ -66,7 +66,7 @@ async function errorFrom(response: Response): Promise<ApiRequestError> {
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
   const token = adminToken();
   if (token === undefined) {
-    throw new ApiRequestError(0, "Token de admin ausente. Abra pelo comando `agw ui`.");
+    throw new ApiRequestError(0, "The admin token is missing. Open the UI with `agw ui`.");
   }
   const headers: Record<string, string> = { "x-agw-token": token };
   const init: RequestInit = { method, headers };

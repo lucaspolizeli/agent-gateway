@@ -32,7 +32,7 @@ export function QueryState<T>({ query, children, loading }: Props<T>) {
 
 export function LoadingRows({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="Carregando">
+    <div className="space-y-2" aria-busy="true" aria-label="Loading">
       {Array.from({ length: rows }, (_, index) => (
         <Skeleton key={index} className="h-10 w-full" />
       ))}
@@ -40,7 +40,7 @@ export function LoadingRows({ rows = 3 }: { rows?: number }) {
   );
 }
 
-export function ErrorBox({ message, title = "Não foi possível carregar" }: { message: string; title?: string }) {
+export function ErrorBox({ message, title = "Could not load" }: { message: string; title?: string }) {
   return (
     <Alert variant="destructive">
       <CircleAlertIcon />

@@ -37,14 +37,14 @@ export function KeyValueEditor({ rows, onChange, keyPlaceholder, valuePlaceholde
           <Input
             className="font-mono"
             value={row.key}
-            aria-label="Chave"
+            aria-label="Key"
             placeholder={keyPlaceholder}
             onChange={(event) => update(row.id, { key: event.target.value })}
           />
           <Input
             className="font-mono"
             value={row.value}
-            aria-label={`Valor de ${row.key}`}
+            aria-label={`Value of ${row.key}`}
             placeholder={valuePlaceholder}
             onChange={(event) => update(row.id, { value: event.target.value })}
           />
@@ -52,8 +52,8 @@ export function KeyValueEditor({ rows, onChange, keyPlaceholder, valuePlaceholde
             type="button"
             variant="ghost"
             size="icon"
-            title="Remover linha"
-            aria-label="Remover linha"
+            title="Remove row"
+            aria-label="Remove row"
             onClick={(event) => remove(event, row.id)}
           >
             <XIcon />
@@ -62,7 +62,7 @@ export function KeyValueEditor({ rows, onChange, keyPlaceholder, valuePlaceholde
       ))}
       <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, newRow()])}>
         <PlusIcon />
-        Adicionar linha
+        Add row
       </Button>
     </div>
   );

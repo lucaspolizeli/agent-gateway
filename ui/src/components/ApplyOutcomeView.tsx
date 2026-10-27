@@ -5,32 +5,32 @@ import { ApplyResultView } from "./ApplyResultView.tsx";
 
 type Entry = { dir: string; reason: string };
 
-const MISSING_REASON = "A pasta não existe mais. Recrie a pasta ou desinstale o projeto.";
-const UNSAFE_REASON = "A pasta resolve para a configuração do usuário (por exemplo, $HOME), então o agw não escreve nela.";
+const MISSING_REASON = "The folder no longer exists. Create it again or uninstall the project.";
+const UNSAFE_REASON = "The folder resolves to your user-level configuration (for example, $HOME), so agw does not write to it.";
 
 /** Every bucket of an apply, so a project never disappears from the result: applied, missing, refused or failed. */
 export function ApplyOutcomeView({ outcome }: { outcome: ApplyOutcome }) {
   return (
     <div className="space-y-3">
       {outcome.applied.length > 0 && (
-        <Bucket title="Aplicados" variant="success" count={outcome.applied.length}>
+        <Bucket title="Applied" variant="success" count={outcome.applied.length}>
           {outcome.applied.map((result) => (
             <ApplyResultView key={result.dir} result={result} />
           ))}
         </Bucket>
       )}
       <ReasonBucket
-        title="Pasta não encontrada"
+        title="Folder not found"
         variant="warning"
         entries={outcome.missing.map((dir) => ({ dir, reason: MISSING_REASON }))}
       />
       <ReasonBucket
-        title="Recusados"
+        title="Refused"
         variant="warning"
         entries={outcome.unsafe.map((dir) => ({ dir, reason: UNSAFE_REASON }))}
       />
       <ReasonBucket
-        title="Não aplicados"
+        title="Not applied"
         variant="destructive"
         entries={outcome.failed.map((entry) => ({ dir: entry.dir, reason: entry.error }))}
       />

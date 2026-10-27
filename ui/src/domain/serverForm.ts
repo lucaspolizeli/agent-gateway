@@ -82,19 +82,19 @@ export function formProblems(form: ServerForm): string[] {
   if (form.kind === "http") {
     const problems: string[] = [];
     if (!URL.canParse(form.url.trim())) {
-      problems.push("URL inválida.");
+      problems.push("Enter a valid URL.");
     }
     for (const key of duplicateKeys(form.headers)) {
-      problems.push(`Header duplicado: ${key}`);
+      problems.push(`Duplicate header: ${key}`);
     }
     return problems;
   }
   const problems: string[] = [];
   if (form.command.trim() === "") {
-    problems.push("Informe o comando.");
+    problems.push("Enter the command.");
   }
   for (const key of duplicateKeys(form.env)) {
-    problems.push(`Variável duplicada: ${key}`);
+    problems.push(`Duplicate variable: ${key}`);
   }
   return problems;
 }

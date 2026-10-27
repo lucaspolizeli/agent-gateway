@@ -11,11 +11,11 @@ const variants: Record<UpstreamState["state"], ComponentProps<typeof Badge>["var
 function label(upstream: UpstreamState): string {
   switch (upstream.state) {
     case "connecting":
-      return "conectando";
+      return "connecting";
     case "ready":
       return `${upstream.toolCount} tools`;
     case "failed":
-      return "falhou";
+      return "failed";
   }
 }
 

@@ -10,12 +10,12 @@ export function reconnectVerdict(status: ProfileStatus, vars: ReconnectVars): Ve
   const outcome = reconnectOutcome(status, server);
   switch (outcome.kind) {
     case "ready":
-      return { tone: "ok", message: `${server} reconectado.` };
+      return { tone: "ok", message: `${server} reconnected.` };
     case "connecting":
-      return { tone: "warn", message: `${server} ainda está conectando.` };
+      return { tone: "warn", message: `${server} is still connecting.` };
     case "failed":
-      return { tone: "error", message: `${server} continua com falha.`, description: outcome.error };
+      return { tone: "error", message: `${server} still fails.`, description: outcome.error };
     case "missing":
-      return { tone: "warn", message: `${server} não está mais neste perfil.` };
+      return { tone: "warn", message: `${server} is no longer in this profile.` };
   }
 }

@@ -13,66 +13,66 @@ const RESERVED_SERVER_NAME = "gateway";
 
 export function slugProblem(value: string, subject: string): string | undefined {
   if (value === "") {
-    return `Informe o nome ${subject}.`;
+    return `Enter the ${subject} name.`;
   }
   if (!SLUG.test(value)) {
-    return "Use letras minúsculas, dígitos e hifens simples, sem hífen no início ou no fim (ex.: meu-nome).";
+    return "Use lowercase letters, digits and single hyphens, with no hyphen at the start or end (for example, my-name).";
   }
   return undefined;
 }
 
 export function serverNameProblem(value: string): string | undefined {
-  const problem = slugProblem(value, "do servidor");
+  const problem = slugProblem(value, "server");
   if (problem !== undefined) {
     return problem;
   }
   if (value === RESERVED_SERVER_NAME) {
-    return `"${RESERVED_SERVER_NAME}" é reservado para as tools do próprio gateway.`;
+    return `"${RESERVED_SERVER_NAME}" is reserved for the gateway's own tools. Choose another name.`;
   }
   return undefined;
 }
 
 export function profileNameProblem(value: string): string | undefined {
-  return slugProblem(value, "do perfil");
+  return slugProblem(value, "profile");
 }
 
 export function skillSetNameProblem(value: string): string | undefined {
-  return slugProblem(value, "do conjunto");
+  return slugProblem(value, "skill set");
 }
 
 export function skillNameProblem(value: string): string | undefined {
   if (value === "") {
-    return "Informe o nome da skill.";
+    return "Enter the skill name.";
   }
   if (!SKILL_NAME.test(value)) {
-    return "Use letras, dígitos, ponto, _ e -, começando por letra ou dígito.";
+    return "Use letters, digits, ., _ and -, starting with a letter or digit.";
   }
   return undefined;
 }
 
 export function skillDescriptionProblem(value: string): string | undefined {
   if (value === "") {
-    return "Informe a descrição: o SKILL.md exige uma.";
+    return "Enter a description. SKILL.md requires one.";
   }
   return undefined;
 }
 
 export function secretKeyProblem(value: string): string | undefined {
   if (value === "") {
-    return "Informe a chave do segredo.";
+    return "Enter the secret key.";
   }
   if (!SECRET_KEY.test(value)) {
-    return "Use letras, dígitos e _, sem começar por dígito (ex.: GITHUB_TOKEN).";
+    return "Use letters, digits and _, and do not start with a digit (for example, GITHUB_TOKEN).";
   }
   return undefined;
 }
 
 export function projectDirProblem(value: string): string | undefined {
   if (value === "") {
-    return "Informe o diretório do repositório.";
+    return "Enter the repository folder.";
   }
   if (!value.startsWith("/")) {
-    return "Use um caminho absoluto, começando por /.";
+    return "Use an absolute path that starts with /.";
   }
   return undefined;
 }

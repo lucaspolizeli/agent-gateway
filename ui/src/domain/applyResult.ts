@@ -51,22 +51,22 @@ export function applyProblem(outcome: ApplyOutcome): string | undefined {
   const parts: string[] = [];
   const clients = failedClients(outcome.applied);
   if (clients.length > 0) {
-    parts.push(`Concluído com falhas em ${clients.join(", ")}`);
+    parts.push(`Done, but ${clients.join(", ")} failed`);
   }
   if (outcome.missing.length > 0) {
-    parts.push(plural(outcome.missing.length, "pasta ausente", "pastas ausentes"));
+    parts.push(plural(outcome.missing.length, "missing folder", "missing folders"));
   }
   if (outcome.unsafe.length > 0) {
-    parts.push(plural(outcome.unsafe.length, "pasta recusada", "pastas recusadas"));
+    parts.push(plural(outcome.unsafe.length, "refused folder", "refused folders"));
   }
   if (outcome.failed.length > 0) {
-    parts.push(plural(outcome.failed.length, "projeto não aplicado", "projetos não aplicados"));
+    parts.push(plural(outcome.failed.length, "project not applied", "projects not applied"));
   }
   if (parts.length === 0) {
     return undefined;
   }
   if (clients.length === 0) {
-    parts[0] = `Concluído com pendências: ${parts[0]}`;
+    parts[0] = `Done with issues: ${parts[0]}`;
   }
   return parts.join(" · ");
 }

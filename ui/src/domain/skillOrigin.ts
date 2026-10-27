@@ -4,12 +4,12 @@ export type OriginKind = SkillOrigin["kind"];
 
 export const originKinds: OriginKind[] = ["hub", "managed", "unmanaged"];
 
-export const originLabels: Record<OriginKind, string> = { hub: "hub", managed: "gerenciada", unmanaged: "solta" };
+export const originLabels: Record<OriginKind, string> = { hub: "hub", managed: "managed", unmanaged: "unmanaged" };
 
 export const originHints: Record<OriginKind, string> = {
-  hub: "Mora num conjunto do hub e é editada aqui.",
-  managed: "Instalada e atualizada pelo CLI skills. Somente leitura: o hub só garante que todo CLI a enxerga.",
-  unmanaged: "Pasta real que nada gerencia. Importe para o hub para editar e versionar.",
+  hub: "Lives in a hub skill set and is edited here.",
+  managed: "Installed and updated by the skills CLI. Read-only here: the hub only makes sure every CLI sees it.",
+  unmanaged: "A real folder that nothing manages. Import it into the hub to edit and version it.",
 };
 
 export function originDetail(origin: SkillOrigin): string {
