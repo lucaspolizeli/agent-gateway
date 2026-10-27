@@ -75,10 +75,14 @@ export function ProfileSpecEditor({ name, spec, config, view, skillSets }: Props
         {view === undefined && <p className="muted">Visão resolvida indisponível.</p>}
         {view !== undefined && <ResolvedPanel view={view} />}
       </section>
-      <ActionBar>
-        <DirtyIndicator dirty={dirty} />
-        <MutationStatus mutation={save} />
-        <span className="spacer" />
+      <ActionBar
+        messages={
+          <>
+            <DirtyIndicator dirty={dirty} />
+            <MutationStatus mutation={save} />
+          </>
+        }
+      >
         {dirty && (
           <button type="button" onClick={reload}>
             Descartar

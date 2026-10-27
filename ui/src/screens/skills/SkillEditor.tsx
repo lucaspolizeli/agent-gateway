@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent } from "react";
 import type { SkillDocument } from "../../contract.ts";
-import { DirtyIndicator } from "../../components/ActionBar.tsx";
+import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
 import { ChevronIcon } from "../../components/Icons.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
@@ -88,14 +88,23 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
         value={content}
         onChange={(event) => setContent(event.target.value)}
       />
-      <footer className="action-bar editor-footer">
-        <DirtyIndicator dirty={dirty} />
-        <MutationStatus mutation={save} />
-        <span className="muted small files-line truncate">
-          {doc.files.length === 0 && "Sem outros arquivos"}
-          {doc.files.length > 0 && <>Outros arquivos: <span className="mono">{doc.files.join(", ")}</span></>}
-        </span>
-        <span className="spacer" />
+      <ActionBar
+        className="editor-footer"
+        messages={
+          <>
+            <DirtyIndicator dirty={dirty} />
+            <MutationStatus mutation={save} />
+            <span className="muted small files-line">
+              {doc.files.length === 0 && "Sem outros arquivos"}
+              {doc.files.length > 0 && (
+                <>
+                  Outros arquivos: <span className="mono">{doc.files.join(", ")}</span>
+                </>
+              )}
+            </span>
+          </>
+        }
+      >
         {dirty && (
           <button type="button" onClick={reload}>
             Descartar
@@ -105,7 +114,7 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
           Salvar
           <kbd className="kbd">{saveShortcut}</kbd>
         </button>
-      </footer>
+      </ActionBar>
     </form>
   );
 }

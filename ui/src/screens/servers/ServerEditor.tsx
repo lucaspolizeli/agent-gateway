@@ -188,10 +188,14 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
         </section>
       )}
 
-      <ActionBar>
-        <BarStatus problems={problems} dirty={dirty} isNew={target.kind === "new"} />
-        <MutationStatus mutation={save} />
-        <span className="spacer" />
+      <ActionBar
+        messages={
+          <>
+            <BarStatus problems={problems} dirty={dirty} isNew={target.kind === "new"} />
+            <MutationStatus mutation={save} />
+          </>
+        }
+      >
         <TestControls
           profiles={profiles}
           profile={testProfile}
