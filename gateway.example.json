@@ -1,20 +1,25 @@
 {
   "servers": {
     "context7": { "command": "npx", "args": ["-y", "@upstash/context7-mcp"] },
-    "globex-ado": {
+    "acme-ado": {
       "command": "npx",
-      "args": ["-y", "@azure-devops/mcp", "globex-org"],
-      "env": { "AZURE_DEVOPS_PAT": "${ADO_PAT}" }
+      "args": ["-y", "@azure-devops/mcp", "acme-org"],
+      "env": { "AZURE_DEVOPS_TOKEN": "${ADO_TOKEN}" }
     },
-    "acme-linear": {
+    "acme-api-db": {
+      "command": "uv",
+      "args": ["run", "db-mcp"],
+      "cwd": "/Users/you/work/acme/api"
+    },
+    "globex-tracker": {
       "url": "https://mcp.example.com/mcp",
-      "headers": { "Authorization": "Bearer ${LINEAR_TOKEN}" }
+      "headers": { "Authorization": "Bearer ${TRACKER_TOKEN}" }
     }
   },
   "profiles": {
     "global": { "servers": ["context7"], "skills": ["global"] },
-    "globex": { "extends": ["global"], "servers": ["globex-ado"], "skills": ["globex"] },
-    "globex-med": { "extends": ["globex"], "skills": ["globex-med"] },
-    "acme": { "extends": ["global"], "servers": ["acme-linear"], "skills": ["acme"] }
+    "acme": { "extends": ["global"], "servers": ["acme-ado"], "skills": ["acme"] },
+    "acme-api": { "extends": ["acme"], "servers": ["acme-api-db"] },
+    "globex": { "extends": ["global"], "servers": ["globex-tracker"], "skills": ["globex"], "hiddenTools": ["globex-tracker__delete_issue"] }
   }
 }

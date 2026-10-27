@@ -2,3 +2,5 @@ node_modules/
 /gateway.json
 /secrets/
 /state/
+/skills/*
+!/skills/.gitkeep
