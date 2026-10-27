@@ -1,5 +1,5 @@
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join, relative, sep } from "node:path";
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { basename, join, relative, resolve, sep } from "node:path";
 import type { Config } from "../config.ts";
 import { UserError } from "../errors.ts";
 import { writeFileAtomic } from "../fsutil.ts";
@@ -177,7 +177,10 @@ export function listImportable(): ImportableSkill[] {
   });
 }
 
-/** Moves a listed importable folder into `toSet`. Only paths `listImportable` returns are accepted. */
+/**
+ * Moves a listed importable folder into `toSet`. Only paths `listImportable` returns are accepted. Links that
+ * pointed at the folder in the other user skill dir go with it, so re-linking puts hub links in their place.
+ */
 export function importSkill(home: string, path: string, toSet: string): string {
   const skill = listImportable().find((candidate) => candidate.path === path);
   if (!skill) {
@@ -194,6 +197,12 @@ export function importSkill(home: string, path: string, toSet: string): string {
     }
     cpSync(path, target, { recursive: true, verbatimSymlinks: true });
     rmSync(path, { recursive: true });
+  }
+  for (const dir of userSkillDirs()) {
+    const link = join(dir, skill.name);
+    if (lstatSync(link, { throwIfNoEntry: false })?.isSymbolicLink() && resolve(dir, readlinkSync(link)) === path) {
+      rmSync(link);
+    }
   }
   return skill.name;
 }

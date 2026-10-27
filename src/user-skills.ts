@@ -1,10 +1,10 @@
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { z } from "zod";
 import type { SkillOrigin } from "./admin/contract.ts";
 import { UserError } from "./errors.ts";
-import { collectSkills, GLOBAL_SET, parseFrontmatter } from "./skills.ts";
+import { collectSkills, GLOBAL_SET, linkSkills, type LinkReport, parseFrontmatter } from "./skills.ts";
 
 /** User-level skill folders: Claude Code (and Grok) read `~/.claude/skills`, Codex reads `~/.agents/skills`. Read through `os.homedir()` on every call. */
 export function userSkillDirs(): string[] {
@@ -109,4 +109,32 @@ export function listUserSkills(home: string): UserSkill[] {
     }
   }
   return [...skills.values()];
+}
+
+/**
+ * Links the hub's global set into every user skill dir, then gives every other user-level skill an entry in
+ * the dirs that lack one: a relative link to its real folder, the kind the `skills` CLI makes, so Claude Code,
+ * Codex and Grok all see it. An existing entry is never replaced, so the `skills` CLI's own links stay as they are.
+ */
+export function linkUserSkills(home: string): LinkReport[] {
+  const skillsRoot = join(home, "skills");
+  let hub = new Map<string, string>();
+  if (existsSync(join(skillsRoot, GLOBAL_SET))) {
+    hub = collectSkills(skillsRoot, [GLOBAL_SET]);
+  }
+  const reports = userSkillDirs().map((target) => linkSkills(target, hub, skillsRoot));
+  for (const skill of listUserSkills(home)) {
+    const folder = realPath(skill.dir);
+    if (skill.origin.kind === "hub" || folder === undefined) {
+      continue;
+    }
+    for (const report of reports) {
+      const path = join(report.target, skill.name);
+      if (lstatSync(path, { throwIfNoEntry: false }) === undefined) {
+        symlinkSync(relative(realpathSync(report.target), folder), path, "dir");
+        report.linked.push(skill.name);
+      }
+    }
+  }
+  return reports;
 }

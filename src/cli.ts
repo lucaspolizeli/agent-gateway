@@ -82,6 +82,9 @@ function printSkills(reports: LinkReport[]) {
   for (const report of reports) {
     const parts = [`+${report.linked.length}`, `-${report.removed.length}`];
     console.log(`  skills ${report.target}: ${parts.join(" ")}`);
+    if (report.linked.length > 0) {
+      console.log(`    linked: ${report.linked.join(", ")}`);
+    }
     if (report.skipped.length > 0) {
       console.log(`    skipped (a non-gateway entry has the same name): ${report.skipped.join(", ")}`);
     }

@@ -9,7 +9,7 @@ import { codexConfigPath, COMMAND_TIMEOUT_MS, PROJECT_CONFIG_FILES, registerAll,
 import { loadConfig, resolveProfile } from "./config.ts";
 import { errorMessage, UserError } from "./errors.ts";
 import { collectSkills, GLOBAL_SET, linkSkills, type LinkReport } from "./skills.ts";
-import { userSkillDirs } from "./user-skills.ts";
+import { linkUserSkills, userSkillDirs } from "./user-skills.ts";
 
 export type Transport = "stdio" | "http";
 type Binding = { profile: string; transport: Transport };
@@ -272,22 +272,13 @@ export async function uninstallProject(home: string, dir: string): Promise<Unins
   return { dir: absolute, clients, skills, kept };
 }
 
-export function linkGlobalSkills(home: string): LinkReport[] {
-  const skillsRoot = join(home, "skills");
-  let skills = new Map<string, string>();
-  if (existsSync(join(skillsRoot, GLOBAL_SET))) {
-    skills = collectSkills(skillsRoot, [GLOBAL_SET]);
-  }
-  return userSkillDirs().map((target) => linkSkills(target, skills, skillsRoot));
-}
-
 export async function installGlobal(home: string, transport: Transport, port: number) {
   resolveProfile(loadConfig(home), GLOBAL_SET);
   const clients = await registerAll(endpointFor(home, GLOBAL_SET, transport, port), { kind: "user" });
   const state = readState(home);
   state.global = { profile: GLOBAL_SET, transport };
   writeState(home, state);
-  return { clients, skills: linkGlobalSkills(home) };
+  return { clients, skills: linkUserSkills(home) };
 }
 
 export type SyncReport = Omit<SyncResult, "applied"> & { global: LinkReport[]; applied: ApplyReport[] };
@@ -299,7 +290,7 @@ export type SyncReport = Omit<SyncResult, "applied"> & { global: LinkReport[]; a
 export async function syncAll(home: string, port: number): Promise<SyncReport> {
   const result: SyncReport = { global: [], applied: [], missing: [], unsafe: [], failed: [] };
   try {
-    result.global = linkGlobalSkills(home);
+    result.global = linkUserSkills(home);
   } catch (error) {
     result.failed.push({ dir: "global", error: errorMessage(error) });
   }
@@ -326,7 +317,7 @@ export async function syncAll(home: string, port: number): Promise<SyncReport> {
  */
 export async function relinkSkills(home: string, changedSets: string[]) {
   if (changedSets.includes(GLOBAL_SET)) {
-    linkGlobalSkills(home);
+    linkUserSkills(home);
   }
   if (changedSets.every((set) => set === GLOBAL_SET)) {
     return;
