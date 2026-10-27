@@ -5,6 +5,7 @@ import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { skillTemplate } from "../../domain/skillTemplate.ts";
 import { hintFor, skillDescriptionProblem, skillNameProblem, skillSetNameProblem } from "../../domain/validation.ts";
 import { navigate } from "../../router.ts";
+import { confirmLeave } from "../../state/unsaved.ts";
 import { useCreateSkillSet, useSaveSkill } from "../../state/skills.ts";
 
 export function NewSetForm({ sets, onDone }: { sets: SkillSet[]; onDone: () => void }) {
@@ -69,12 +70,15 @@ export function NewSkillForm({ sets, defaultSet, onDone }: NewSkillProps) {
     <form
       onSubmit={(event) => {
         event.preventDefault();
+        if (!confirmLeave()) {
+          return;
+        }
         create.mutate(
           { set, name: trimmed, content: skillTemplate(trimmed, trimmedDescription) },
           {
             onSuccess: () => {
               onDone();
-              navigate({ screen: "skills", set, skill: trimmed });
+              navigate({ screen: "skills", set, skill: trimmed }, { confirmed: true });
             },
           },
         );

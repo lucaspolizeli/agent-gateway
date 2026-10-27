@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { confirmLeave } from "./state/unsaved.ts";
 
 export const profileTabs = ["composicao", "tools", "segredos"] as const;
 
@@ -65,14 +66,42 @@ export function hrefFor(route: Route): string {
   return `#/${[route.screen, ...encoded].join("/")}`;
 }
 
-export function navigate(route: Route) {
-  window.location.hash = hrefFor(route);
+/** The hash that has been shown to the user, so a refused navigation can put the address bar back. */
+let shownHash = "";
+/** The hash `navigate` already got confirmation for, so its `hashchange` does not ask a second time. */
+let approvedHash: string | undefined;
+
+/** Returns false when the user kept their unsaved edits instead of leaving. `confirmed` skips the question. */
+export function navigate(route: Route, options: { confirmed?: boolean } = {}): boolean {
+  const next = hrefFor(route);
+  if (next === window.location.hash) {
+    return true;
+  }
+  if (options.confirmed !== true && !confirmLeave()) {
+    return false;
+  }
+  approvedHash = next;
+  window.location.hash = next;
+  return true;
 }
 
 export function useRoute(): Route {
-  const [route, setRoute] = useState(() => parseHash(window.location.hash));
+  const [route, setRoute] = useState(() => {
+    shownHash = window.location.hash;
+    return parseHash(shownHash);
+  });
   useEffect(() => {
-    const onChange = () => setRoute(parseHash(window.location.hash));
+    const onChange = () => {
+      const next = window.location.hash;
+      const approved = approvedHash === next;
+      approvedHash = undefined;
+      if (!approved && !confirmLeave()) {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${shownHash}`);
+        return;
+      }
+      shownHash = next;
+      setRoute(parseHash(next));
+    };
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);

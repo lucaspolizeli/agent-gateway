@@ -21,6 +21,7 @@ import { useConfig, useConfigEdit } from "../state/config.ts";
 import { useGatewayHealth } from "../state/health.ts";
 import { useProfiles } from "../state/profiles.ts";
 import { useSkillSets } from "../state/skills.ts";
+import { confirmLeave } from "../state/unsaved.ts";
 import { ProfileSpecEditor } from "./profiles/ProfileSpecEditor.tsx";
 import { SecretsEditor } from "./profiles/SecretsEditor.tsx";
 import { ToolsPanel } from "./profiles/ToolsPanel.tsx";
@@ -81,12 +82,15 @@ function NewProfileForm({ existing, onDone }: { existing: string[]; onDone: () =
     <form
       onSubmit={(event) => {
         event.preventDefault();
+        if (!confirmLeave()) {
+          return;
+        }
         create.mutate(
           { op: "upsertProfile", name: trimmed, profile: emptyProfile },
           {
             onSuccess: () => {
               onDone();
-              navigate({ screen: "profiles", profile: trimmed });
+              navigate({ screen: "profiles", profile: trimmed }, { confirmed: true });
             },
           },
         );
@@ -173,7 +177,7 @@ function ProfileDetail({ name, config, tab }: DetailProps) {
   const profiles = useProfiles();
   const skillSets = useSkillSets();
   const health = useGatewayHealth();
-  const remove = useConfigEdit(() => navigate({ screen: "profiles" }));
+  const remove = useConfigEdit(() => navigate({ screen: "profiles" }, { confirmed: true }));
   const spec = config.profiles[name] ?? emptyProfile;
   const view = profiles.data?.find((candidate) => candidate.name === name);
   const status = health.statuses.get(name);
@@ -219,7 +223,11 @@ function ProfileDetail({ name, config, tab }: DetailProps) {
           label="Remover perfil"
           question={`Remover o perfil ${name}?`}
           disabled={remove.isPending}
-          onConfirm={() => remove.mutate({ op: "removeProfile", name })}
+          onConfirm={() => {
+            if (confirmLeave()) {
+              remove.mutate({ op: "removeProfile", name });
+            }
+          }}
         />
       </header>
       <div className="detail-tabs">
