@@ -411,12 +411,6 @@
   gap: var(--space-2);
   margin-left: auto;
 }
-.action-bar-divider {
-  width: 1px;
-  height: 20px;
-  margin: 0 var(--space-2);
-  background: var(--border);
-}
 .dirty-indicator {
   display: inline-flex;
   align-items: center;

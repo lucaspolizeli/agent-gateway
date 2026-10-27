@@ -99,87 +99,21 @@
   color: var(--text-primary);
 }
 
-.skip-link {
+.skip-link:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.skip-link:focus {
   position: fixed;
   top: var(--space-2);
   left: var(--space-2);
   z-index: 50;
-  transform: translateY(-200%);
-}
-.skip-link:focus {
-  transform: none;
 }
 .main:focus {
   outline: none;
-}
-
-/* Below this the sidebar keeps only icons (labels live in the link's name and tooltip) and lists stack above their detail. */
-@media (max-width: 1000px) {
-  :root {
-    --sidebar-width: 56px;
-  }
-  .sidebar {
-    align-items: center;
-    padding: var(--space-4) var(--space-2);
-  }
-  .brand {
-    padding: 0;
-  }
-  .brand-name,
-  .nav-label,
-  .health-text {
-    display: none;
-  }
-  .nav-item {
-    position: relative;
-    justify-content: center;
-    width: var(--control-height);
-    padding: 0;
-  }
-  .nav-item .count {
-    position: absolute;
-    top: -4px;
-    right: -6px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    font-size: 10px;
-    background: var(--surface-panel);
-    box-shadow: 0 0 0 1px var(--border);
-  }
-  .health-line {
-    justify-content: center;
-    padding: var(--space-2) 0;
-  }
-  .content {
-    padding: var(--space-4) var(--space-4) var(--space-8);
-  }
-  .stat-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .split {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .master {
-    position: static;
-    max-height: 260px;
-  }
-  .skills-split {
-    height: auto;
-    min-height: 0;
-  }
-  .skills-split .skill-tree {
-    height: auto;
-    max-height: 260px;
-  }
-  .skills-split .skill-editor {
-    height: max(70vh, 480px);
-  }
-  .popover,
-  .popover-wide {
-    width: min(340px, calc(100vw - 96px));
-  }
-  .popover-wide {
-    width: min(520px, calc(100vw - 96px));
-  }
 }

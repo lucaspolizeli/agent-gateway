@@ -171,3 +171,6 @@
 .stopped-servers {
   max-width: 360px;
 }
+.stopped-row > button {
+  margin-left: auto;
+}

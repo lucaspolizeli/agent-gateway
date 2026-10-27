@@ -203,7 +203,6 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
           disabled={specProblems.length > 0 || test.isPending}
           onRun={runTest}
         />
-        <span className="action-bar-divider" />
         <button type="submit" className="primary" disabled={!saveable}>
           Salvar
         </button>

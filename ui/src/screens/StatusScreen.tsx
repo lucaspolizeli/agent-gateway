@@ -4,7 +4,7 @@ import { CountBadge } from "../components/CountBadge.tsx";
 import { MutationStatus } from "../components/MutationStatus.tsx";
 import { PageHeader } from "../components/PageHeader.tsx";
 import { QueryState } from "../components/QueryState.tsx";
-import { reconnectVerdict } from "../components/reconnectVerdict.ts";
+import { reconnectRowVerdict, reconnectVerdict } from "../components/reconnectVerdict.ts";
 import { RunningBadge } from "../components/RunningBadge.tsx";
 import { StatusDot } from "../components/StatusDot.tsx";
 import { UpstreamBadge } from "../components/UpstreamBadge.tsx";
@@ -105,7 +105,7 @@ function FailedServerRow({ item }: { item: Extract<AttentionItem, { kind: "faile
           <a href={hrefFor({ screen: "profiles", profile: item.profile })}>{item.profile}</a>
         </div>
         <pre className="attention-error">{item.error}</pre>
-        <MutationStatus mutation={reconnect} verdict={reconnectVerdict} />
+        <MutationStatus mutation={reconnect} verdict={reconnectRowVerdict} />
       </div>
       <button
         type="button"

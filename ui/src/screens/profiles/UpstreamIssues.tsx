@@ -1,7 +1,7 @@
 import type { UpstreamState } from "../../contract.ts";
 import { CountBadge } from "../../components/CountBadge.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
-import { reconnectVerdict } from "../../components/reconnectVerdict.ts";
+import { reconnectRowVerdict } from "../../components/reconnectVerdict.ts";
 import { StatusDot } from "../../components/StatusDot.tsx";
 import { UpstreamBadge } from "../../components/UpstreamBadge.tsx";
 import { missingSecretKeys } from "../../domain/health.ts";
@@ -42,7 +42,7 @@ function UpstreamIssue({ profile, upstream }: { profile: string; upstream: Upstr
           <UpstreamBadge upstream={upstream} />
         </div>
         <IssueDetail profile={profile} upstream={upstream} />
-        <MutationStatus mutation={reconnect} verdict={reconnectVerdict} />
+        <MutationStatus mutation={reconnect} verdict={reconnectRowVerdict} />
       </div>
       <button
         type="button"
