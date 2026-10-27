@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { z } from "zod";
 import type * as Contract from "./admin/contract.ts";
-import { errorMessage, UserError } from "./errors.ts";
+import { describeIssues, errorMessage, UserError } from "./errors.ts";
 import { writeFileAtomic } from "./fsutil.ts";
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -82,7 +82,7 @@ export function configPath(home: string): string {
 export function parseConfig(raw: unknown): Config {
   const parsed = ConfigSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new UserError("invalid", z.prettifyError(parsed.error));
+    throw new UserError("invalid", describeIssues(parsed.error));
   }
   const config = parsed.data;
   if ("gateway" in config.servers) {

@@ -51,3 +51,14 @@ test("unregistering reports a hung CLI the same way", async () => {
   assert.equal(results[0]!.ok, false);
   assert.match(results[0]!.detail, /did not finish/);
 });
+
+test("a CLI that hangs on the remove before an add fails after one deadline, not two", async () => {
+  process.env.HANG_REMOVE = "1";
+  const started = Date.now();
+  const results = await registerAll(endpoint, { kind: "project", dir }, { timeoutMs: 1500 });
+  const elapsed = Date.now() - started;
+  delete process.env.HANG_REMOVE;
+  assert.equal(results[0]!.ok, false);
+  assert.match(results[0]!.detail, /claude did not finish within 1\.5s/);
+  assert.ok(elapsed < 2900, `took ${elapsed}ms; the add ran after the remove had already hung`);
+});

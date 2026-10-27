@@ -27,3 +27,10 @@ test("a JSON syntax error names the position and never quotes the config text", 
   assert.equal(missingComma.message.includes(SECRET.slice(0, 6)), false, missingComma.message);
   assert.match(missingComma.message, /line 2, column \d+/);
 });
+
+test("a config that fails the schema is described field by field, without zod's decorations", () => {
+  const error = loadFrom(JSON.stringify({ servers: { a: { command: "" } }, profiles: { x: { servers: [], bogus: 1 } } }));
+  assert.doesNotMatch(error.message, /✖|→ at/);
+  assert.match(error.message, /profiles\.x/);
+  assert.match(error.message, /servers\.a\.command/);
+});

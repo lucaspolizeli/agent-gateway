@@ -1,3 +1,5 @@
+import type { z } from "zod";
+
 export type UserErrorKind = "invalid" | "notFound" | "conflict";
 
 /** A failure caused by the request or the config, with a message meant for the person who made it. */
@@ -18,4 +20,21 @@ export function errorMessage(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+/** One line per rejected field, `Field: reason`, without the decorations of zod's own report. */
+export function describeIssues(error: z.ZodError, labels: Record<string, string> = {}): string {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.map(String);
+      if (path.length === 0) {
+        return issue.message;
+      }
+      let label = path.join(".");
+      if (path.length === 1) {
+        label = labels[label] ?? label;
+      }
+      return `${label}: ${issue.message}`;
+    })
+    .join("\n");
 }

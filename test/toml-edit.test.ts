@@ -60,3 +60,9 @@ test("a layout it cannot edit in place is refused instead of rewritten wrongly",
   assert.throws(() => editTomlTable(dotted, GW, entry), /cannot be edited in place/);
   assert.throws(() => editTomlTable("[broken", GW, entry));
 });
+
+test("a file without a trailing newline comes back byte-identical after install then uninstall", () => {
+  const bare = `# c\n[a]\nb = 1`;
+  const installed = editTomlTable(bare, GW, entry);
+  assert.equal(editTomlTable(installed, GW, undefined), bare);
+});

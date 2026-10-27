@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
 import { loadConfig, ServerSchema, slug, writeConfig } from "../config.ts";
-import { errorMessage, HTTP_STATUS, UserError } from "../errors.ts";
+import { describeIssues, errorMessage, HTTP_STATUS, UserError } from "../errors.ts";
 import type { GatewayPool } from "../pool.ts";
 import { installedProfiles, installProject, listProjects, relinkSkills, syncAll, uninstallProject, unsafeProjectDir } from "../project.ts";
 import type { ApiError, ProjectApplyResult, ProjectView, SyncResult } from "./contract.ts";
@@ -97,23 +97,6 @@ const FIELD_LABELS: Record<string, string> = {
   from: "Origem",
   to: "Destino",
 };
-
-/** One line per rejected field, `Field: reason`, without the decorations of zod's own report. */
-function describeInvalidInput(error: z.ZodError): string {
-  return error.issues
-    .map((issue) => {
-      const path = issue.path.map(String);
-      if (path.length === 0) {
-        return issue.message;
-      }
-      let label = path.join(".");
-      if (path.length === 1) {
-        label = FIELD_LABELS[label] ?? label;
-      }
-      return `${label}: ${issue.message}`;
-    })
-    .join("\n");
-}
 
 function toApplyResult(report: ProjectApplyResult): ProjectApplyResult {
   return { dir: report.dir, clients: report.clients, skills: report.skills };
@@ -349,7 +332,7 @@ export function createAdminApi(context: AdminContext) {
       if (error instanceof UserError) {
         sendError(res, HTTP_STATUS[error.kind], error.message);
       } else if (error instanceof z.ZodError) {
-        sendError(res, 400, describeInvalidInput(error));
+        sendError(res, 400, describeIssues(error, FIELD_LABELS));
       } else {
         process.stderr.write(`[agent-gateway] ${req.method} ${url.pathname}: ${errorMessage(error)}\n`);
         sendError(res, 500, errorMessage(error));

@@ -214,7 +214,7 @@ export class Gateway {
   /**
    * Replaces the upstream for `name`. A connect that finishes after its upstream was replaced or removed
    * closes its own client, so a reconfigure never leaves a stray process behind. `failures` counts the
-   * connection failures in a row of a retry chain, which a lost connection starts; 0 means no retries.
+   * connection failures in a row; a failed connect always schedules the next attempt with backoff.
    */
   private async connect(name: string, plan: ConnectPlan, failures = 0): Promise<void> {
     const previous = this.upstreams.get(name);
@@ -242,11 +242,7 @@ export class Gateway {
     try {
       await withTimeout(client.connect(transportFor(plan.spec, "inherit")), CONNECT_TIMEOUT_MS);
     } catch (error) {
-      let nextFailures = 0;
-      if (failures > 0) {
-        nextFailures = failures + 1;
-      }
-      this.fail(pending, redact(errorMessage(error), plan.secretValues), nextFailures);
+      this.fail(pending, redact(errorMessage(error), plan.secretValues), failures + 1);
       await client.close().catch(() => {});
       await closingPrevious;
       return;

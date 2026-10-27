@@ -194,6 +194,9 @@ function closeGap(before: string, after: string): [string, string] {
   if (before === "" && after.startsWith("\n")) {
     return [before, after.slice(1)];
   }
+  if (after === "" && before.endsWith("\n") && !before.endsWith("\n\n")) {
+    return [before.slice(0, -1), after];
+  }
   if (!before.endsWith("\n\n")) {
     return [before, after];
   }
@@ -226,7 +229,7 @@ export function editTomlTable(text: string, path: string[], value: Dict | undefi
       } else if (text.endsWith("\n")) {
         edited = `${text}\n${block}`;
       } else {
-        edited = `${text}\n\n${block}`;
+        edited = `${text}\n${block}`;
       }
     }
   } else {

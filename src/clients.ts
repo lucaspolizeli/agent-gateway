@@ -24,6 +24,8 @@ export const COMMAND_TIMEOUT_MS = 30_000;
 
 export type Timing = { timeoutMs: number };
 
+class CommandTimeout extends Error {}
+
 /**
  * The deadline is enforced here and not by `execFile`'s own `timeout`, because that one still waits
  * for the output pipes to close, which a grandchild of the killed process can hold open.
@@ -42,7 +44,7 @@ function run(command: string, args: string[], cwd: string | undefined, { timeout
       child.kill("SIGKILL");
       child.stdout?.destroy();
       child.stderr?.destroy();
-      reject(new Error(`${command} did not finish within ${timeoutMs / 1000}s and was stopped`));
+      reject(new CommandTimeout(`${command} did not finish within ${timeoutMs / 1000}s and was stopped`));
     }, timeoutMs);
     child.stdin?.end();
   });
@@ -57,6 +59,20 @@ async function removeEntry(command: string, args: string[], cwd: string | undefi
     await run(command, args, cwd, timing);
   } catch (error) {
     if (!NOT_REGISTERED.test(errorMessage(error))) {
+      throw error;
+    }
+  }
+}
+
+/**
+ * Clears the entry before re-adding it. Any failure means "nothing to remove" except a hang:
+ * a client that hung once would hang on the add too, so it fails now instead of after a second deadline.
+ */
+async function removeBeforeAdd(command: string, args: string[], cwd: string | undefined, timing: Timing): Promise<void> {
+  try {
+    await run(command, args, cwd, timing);
+  } catch (error) {
+    if (error instanceof CommandTimeout) {
       throw error;
     }
   }
@@ -91,11 +107,7 @@ function registerClaude(endpoint: Endpoint, scope: Scope, timing: Timing): Promi
     json = { type: "http", url: endpoint.url };
   }
   return attempt("claude", `${claudeScope} scope`, async () => {
-    try {
-      await run("claude", ["mcp", "remove", ENTRY_NAME, "-s", claudeScope], cwdOf(scope), timing);
-    } catch {
-      // Not registered yet.
-    }
+    await removeBeforeAdd("claude", ["mcp", "remove", ENTRY_NAME, "-s", claudeScope], cwdOf(scope), timing);
     await run("claude", ["mcp", "add-json", ENTRY_NAME, JSON.stringify(json), "-s", claudeScope], cwdOf(scope), timing);
   });
 }
@@ -113,11 +125,7 @@ function unregisterClaude(scope: Scope, timing: Timing): Promise<ClientResult> {
 function registerGrok(endpoint: Endpoint, scope: Scope, timing: Timing): Promise<ClientResult> {
   const grokScope = scope.kind;
   return attempt("grok", `${grokScope} scope`, async () => {
-    try {
-      await run("grok", ["mcp", "remove", ENTRY_NAME, "-s", grokScope], cwdOf(scope), timing);
-    } catch {
-      // Not registered yet.
-    }
+    await removeBeforeAdd("grok", ["mcp", "remove", ENTRY_NAME, "-s", grokScope], cwdOf(scope), timing);
     if (endpoint.kind === "stdio") {
       await run("grok", ["mcp", "add", ENTRY_NAME, endpoint.command, "-s", grokScope, "--", ...endpoint.args], cwdOf(scope), timing);
     } else {
@@ -148,11 +156,7 @@ export function codexConfigPath(scope: Scope): string {
 function registerCodex(endpoint: Endpoint, scope: Scope, timing: Timing): Promise<ClientResult> {
   if (scope.kind === "user") {
     return attempt("codex", "user scope", async () => {
-      try {
-        await run("codex", ["mcp", "remove", ENTRY_NAME], undefined, timing);
-      } catch {
-        // Not registered yet.
-      }
+      await removeBeforeAdd("codex", ["mcp", "remove", ENTRY_NAME], undefined, timing);
       if (endpoint.kind === "stdio") {
         await run("codex", ["mcp", "add", ENTRY_NAME, "--", endpoint.command, ...endpoint.args], undefined, timing);
       } else {

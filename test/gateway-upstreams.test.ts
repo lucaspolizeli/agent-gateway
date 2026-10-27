@@ -172,3 +172,28 @@ test("a resource read stops going to a server that left the profile", async () =
     await gateway.close();
   }
 });
+
+test("a server that fails its first connect keeps retrying and comes up once the cause is gone", async () => {
+  const { home, failFlag, marker } = setup({ a: {} }, ["a"]);
+  writeFileSync(failFlag, "");
+  const gateway = open(home);
+  await gateway.start();
+  const first = await stateOf(gateway, "a");
+  assert.equal(first?.state, "failed");
+  assert.match((first as { error: string }).error, /retrying in 1s/);
+  rmSync(failFlag);
+  await until("a to come up", 6000, async () => {
+    const entry = await stateOf(gateway, "a");
+    if (entry?.state === "ready") {
+      return entry;
+    }
+    return undefined;
+  });
+  await gateway.close();
+  await until("no leftover upstream", 3000, async () => {
+    if (leftovers(marker)) {
+      return undefined;
+    }
+    return true;
+  });
+});
