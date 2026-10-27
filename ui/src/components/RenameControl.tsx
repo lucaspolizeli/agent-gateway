@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { hintFor } from "../domain/validation.ts";
 import { FieldHint } from "./FieldHint.tsx";
+import { useInlinePrompt } from "./useInlinePrompt.ts";
 
 type Props = {
   current: string;
@@ -11,9 +12,10 @@ type Props = {
 
 export function RenameControl({ current, onRename, validate, disabled }: Props) {
   const [draft, setDraft] = useState<string | undefined>(undefined);
+  const { trigger, entryRef } = useInlinePrompt(draft !== undefined);
   if (draft === undefined) {
     return (
-      <button type="button" disabled={disabled} onClick={() => setDraft(current)}>
+      <button ref={trigger} type="button" disabled={disabled} onClick={() => setDraft(current)}>
         Renomear
       </button>
     );
@@ -23,11 +25,20 @@ export function RenameControl({ current, onRename, validate, disabled }: Props) 
   const hint = hintFor(to, formatProblem);
   const unchanged = to === current;
   return (
-    <span className="confirm">
+    <span
+      className="confirm"
+      role="group"
+      aria-label={`Renomear ${current}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          setDraft(undefined);
+        }
+      }}
+    >
       <input
+        ref={entryRef}
         className="mono"
         value={draft}
-        autoFocus
         aria-label="Novo nome"
         aria-invalid={hint !== undefined}
         aria-describedby={hint && "rename-hint"}
