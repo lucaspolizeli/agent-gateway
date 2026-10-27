@@ -11,6 +11,7 @@ import "./styles/status.css";
 import "./styles/servers.css";
 import "./styles/profiles.css";
 import "./styles/skills.css";
+import "./styles/projects.css";
 
 captureAdminToken();
 
