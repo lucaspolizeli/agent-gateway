@@ -2,7 +2,7 @@ import type { UpstreamState } from "../contract.ts";
 import { Badge, type Tone } from "./Badge.tsx";
 
 const tones: Record<UpstreamState["state"], Tone> = {
-  connecting: "info",
+  connecting: "accent",
   ready: "ok",
   failed: "danger",
 };
@@ -12,7 +12,7 @@ function label(upstream: UpstreamState): string {
     case "connecting":
       return "conectando";
     case "ready":
-      return `pronto · ${upstream.toolCount} tools`;
+      return `${upstream.toolCount} tools`;
     case "failed":
       return "falhou";
   }

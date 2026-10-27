@@ -48,7 +48,7 @@ function SetCard({ skillSet, selectedSet, selectedSkill }: SetCardProps) {
     <article className="card" aria-current={skillSet.name === selectedSet && selectedSkill === undefined}>
       <header className="card-header">
         <span className="card-title mono">{skillSet.name}</span>
-        <Badge tone="info">escopo: {scopeLabels[skillSet.scope]}</Badge>
+        <Badge tone="accent">escopo: {scopeLabels[skillSet.scope]}</Badge>
       </header>
       <div className="muted small">
         Usado por: {skillSet.usedBy.join(", ")}
