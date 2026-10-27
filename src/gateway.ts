@@ -38,12 +38,15 @@ import { errorMessage, UserError } from "./errors.ts";
 const STATUS_TOOL = `gateway${SEPARATOR}status`;
 const CONNECT_TIMEOUT_MS = 30_000;
 const CALL_TIMEOUT_MS = 10 * 60_000;
+/** A dead upstream is retried after 1s, 2s, 4s... and never less often than every minute. */
+const RETRY_BASE_MS = 1000;
+const RETRY_MAX_MS = 60_000;
 
 /** `key` identifies the interpolated spec the upstream was started from, so a reconfigure can tell what changed. */
 type Upstream =
   | { name: string; key: string; state: "connecting" }
   | { name: string; key: string; state: "ready"; client: Client }
-  | { name: string; key: string; state: "failed"; error: string };
+  | { name: string; key: string; state: "failed"; error: string; retryTimer?: NodeJS.Timeout };
 
 type ConnectPlan = { key: string; spec: ServerSpec; secretValues: string[] } | { key: string; error: string };
 
@@ -114,6 +117,9 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 async function closeUpstream(upstream: Upstream | undefined) {
+  if (upstream?.state === "failed") {
+    clearTimeout(upstream.retryTimer);
+  }
   if (upstream?.state === "ready") {
     await upstream.client.close().catch(() => {});
   }
@@ -152,8 +158,10 @@ export class Gateway {
     const pending: Array<Promise<void>> = [];
     for (const name of [...this.upstreams.keys()]) {
       if (!plans.has(name)) {
-        pending.push(closeUpstream(this.upstreams.get(name)));
+        const removed = this.upstreams.get(name);
         this.upstreams.delete(name);
+        this.forgetResourceOwners(name);
+        pending.push(closeUpstream(removed));
       }
     }
     const removedAny = pending.length > 0;
@@ -181,6 +189,7 @@ export class Gateway {
   async close(): Promise<void> {
     const upstreams = [...this.upstreams.values()];
     this.upstreams.clear();
+    this.resourceOwners.clear();
     await Promise.allSettled(upstreams.map(closeUpstream));
   }
 
@@ -204,12 +213,14 @@ export class Gateway {
 
   /**
    * Replaces the upstream for `name`. A connect that finishes after its upstream was replaced or removed
-   * closes its own client, so a reconfigure never leaves a stray process behind.
+   * closes its own client, so a reconfigure never leaves a stray process behind. `failures` counts the
+   * connection failures in a row of a retry chain, which a lost connection starts; 0 means no retries.
    */
-  private async connect(name: string, plan: ConnectPlan): Promise<void> {
+  private async connect(name: string, plan: ConnectPlan, failures = 0): Promise<void> {
     const previous = this.upstreams.get(name);
     const pending: Upstream = { name, key: plan.key, state: "connecting" };
     this.upstreams.set(name, pending);
+    this.forgetResourceOwners(name);
     const closingPrevious = closeUpstream(previous);
     if (previous?.state === "ready") {
       this.emit(...ALL_KINDS);
@@ -223,14 +234,19 @@ export class Gateway {
     client.onclose = () => {
       const current = this.upstreams.get(name);
       if (current?.state === "ready" && current.client === client) {
-        this.upstreams.set(name, { name, key: current.key, state: "failed", error: "connection closed" });
+        this.forgetResourceOwners(name);
+        this.retryLater(name, current.key, "connection closed", 1);
         this.emit(...ALL_KINDS);
       }
     };
     try {
       await withTimeout(client.connect(transportFor(plan.spec, "inherit")), CONNECT_TIMEOUT_MS);
     } catch (error) {
-      this.fail(pending, redact(errorMessage(error), plan.secretValues));
+      let nextFailures = 0;
+      if (failures > 0) {
+        nextFailures = failures + 1;
+      }
+      this.fail(pending, redact(errorMessage(error), plan.secretValues), nextFailures);
       await client.close().catch(() => {});
       await closingPrevious;
       return;
@@ -247,12 +263,55 @@ export class Gateway {
     this.emit(...ALL_KINDS);
   }
 
-  private fail(pending: Upstream, error: string) {
+  private fail(pending: Upstream, error: string, failures = 0) {
     if (this.upstreams.get(pending.name) !== pending) {
       return;
     }
-    this.upstreams.set(pending.name, { name: pending.name, key: pending.key, state: "failed", error });
     process.stderr.write(`[agent-gateway] ${pending.name}: ${error}\n`);
+    if (failures > 0) {
+      this.retryLater(pending.name, pending.key, error, failures);
+      return;
+    }
+    this.upstreams.set(pending.name, { name: pending.name, key: pending.key, state: "failed", error });
+  }
+
+  /**
+   * Marks the upstream failed and schedules the next connection attempt, `failures` being the count so far.
+   * The timer is cleared whenever the upstream is replaced, removed or the gateway closed, and does nothing
+   * if it fires for an upstream that is no longer the current one or no longer in the profile.
+   */
+  private retryLater(name: string, key: string, reason: string, failures: number) {
+    const delay = Math.min(RETRY_BASE_MS * 2 ** (failures - 1), RETRY_MAX_MS);
+    const failed: Upstream = { name, key, state: "failed", error: `${reason}; retrying in ${delay / 1000}s` };
+    failed.retryTimer = setTimeout(() => this.retry(failed, failures), delay);
+    failed.retryTimer.unref();
+    this.upstreams.set(name, failed);
+  }
+
+  private retry(failed: Upstream, failures: number) {
+    const spec = this.profile.servers.get(failed.name);
+    if (this.upstreams.get(failed.name) !== failed || spec === undefined) {
+      return;
+    }
+    let plan: ConnectPlan;
+    try {
+      plan = planConnection(spec, loadSecrets(this.home, this.profile));
+    } catch (error) {
+      this.retryLater(failed.name, failed.key, errorMessage(error), failures + 1);
+      return;
+    }
+    this.connect(failed.name, plan, failures).catch((error: unknown) => {
+      process.stderr.write(`[agent-gateway] ${failed.name}: ${errorMessage(error)}\n`);
+    });
+  }
+
+  /** A resource URI is routed to the server that listed it, so the entries of a server that left or restarted go stale. */
+  private forgetResourceOwners(server: string) {
+    for (const [uri, owner] of this.resourceOwners) {
+      if (owner === server) {
+        this.resourceOwners.delete(uri);
+      }
+    }
   }
 
   private emit(...kinds: ListKind[]) {
