@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { CliName, SkillOrigin, SkillsDoctorReport } from "./admin/contract.ts";
+import { importSkill } from "./admin/skills.ts";
 import { adminTokenPath, readAdminToken } from "./admin/token.ts";
 import type { ClientResult } from "./clients.ts";
 import { loadConfig, resolveProfile } from "./config.ts";
@@ -13,6 +15,7 @@ import {
   installGlobal,
   installProject,
   listProjects,
+  relinkSkills,
   syncAll,
   type Transport,
   uninstallProject,
@@ -20,7 +23,9 @@ import {
 } from "./project.ts";
 import { installService, restartService, serviceLogPath, uninstallService } from "./service.ts";
 import { loadMenuState, renderMenu, runMenuAction } from "./menubar.ts";
+import { runSkillsDoctor } from "./skills-doctor.ts";
 import type { LinkReport } from "./skills.ts";
+import { listUserSkills } from "./user-skills.ts";
 
 const USAGE = `agw - one MCP gateway and skill hub per company
 
@@ -35,6 +40,9 @@ const USAGE = `agw - one MCP gateway and skill hub per company
   agw ui [route]                         Open the admin UI of the running agw serve (e.g. profiles/globex)
   agw service install|start|uninstall    Keep agw serve running at login through launchd (macOS)
   agw menubar                            Print the SwiftBar menu (see swiftbar/)
+  agw skills list                        Show every user-level skill and where it comes from
+  agw skills import <path> <set>         Move a skill folder nothing manages into a hub set, then re-link
+  agw skills doctor [dir]                Ask Claude Code, Codex and Grok which skills they see (default: user level)
 
 Home: ${"$"}AGW_HOME, else this repository. Port: --port, ${"$"}AGW_PORT, else ${DEFAULT_PORT}.`;
 
@@ -88,6 +96,60 @@ function printSkills(reports: LinkReport[]) {
     if (report.skipped.length > 0) {
       console.log(`    skipped (a non-gateway entry has the same name): ${report.skipped.join(", ")}`);
     }
+  }
+}
+
+function originLabel(origin: SkillOrigin): string {
+  if (origin.kind === "hub") {
+    return `hub ${origin.set}`;
+  }
+  if (origin.kind === "managed") {
+    return `managed ${origin.source}`;
+  }
+  return "unmanaged";
+}
+
+const CLIS: CliName[] = ["claude", "codex", "grok"];
+
+/** Prints the matrix and makes the exit code non-zero when a skill is hidden from a CLI, a probe failed, or a skill has problems. */
+function printDoctor(report: SkillsDoctorReport) {
+  console.log(`Skills doctor: ${report.dir ?? "user level"}`);
+  for (const cli of CLIS) {
+    const probe = report.probes[cli];
+    if (probe.ok) {
+      console.log(`  ${cli.padEnd(6)} ok, ${probe.count} skills discovered`);
+    } else {
+      console.log(`  ${cli.padEnd(6)} FAIL ${probe.error}`);
+    }
+  }
+  const nameWidth = Math.max(4, ...report.rows.map((row) => row.name.length));
+  const originWidth = Math.max(6, ...report.rows.map((row) => originLabel(row.origin).length));
+  console.log(`  ${"name".padEnd(nameWidth)}  ${"origin".padEnd(originWidth)}  claude codex grok  problems`);
+  for (const row of report.rows) {
+    const marks = CLIS.map((cli) => {
+      let mark = "✗";
+      if (row.visible[cli]) {
+        mark = "✓";
+      }
+      return mark.padEnd(cli.length);
+    });
+    const line = `  ${row.name.padEnd(nameWidth)}  ${originLabel(row.origin).padEnd(originWidth)}  ${marks.join(" ")}  ${row.problems.join("; ")}`;
+    console.log(line.trimEnd());
+  }
+  if (report.brokenLinks.length > 0) {
+    console.log("  broken links:");
+    for (const link of report.brokenLinks) {
+      console.log(`    ${link}`);
+    }
+  }
+  const hidden = report.rows.filter((row) => CLIS.some((cli) => !row.visible[cli])).length;
+  const withProblems = report.rows.filter((row) => row.problems.length > 0).length;
+  const failedProbes = CLIS.filter((cli) => !report.probes[cli].ok).length;
+  console.log(
+    `Summary: ${report.rows.length} skills, ${hidden} hidden from some CLI, ${withProblems} with problems, ${failedProbes} probes failed, ${report.brokenLinks.length} broken links`,
+  );
+  if (hidden > 0 || withProblems > 0 || failedProbes > 0) {
+    process.exitCode = 1;
   }
 }
 
@@ -225,6 +287,31 @@ const commands: Record<string, Command> = {
       console.log(`Unloaded and removed ${uninstallService()}`);
     } else {
       console.error(`Unknown service action "${action}"\n\n${USAGE}`);
+      process.exit(1);
+    }
+  },
+  skills: async (rest) => {
+    const action = requireArg(rest[0], "list|import|doctor");
+    if (action === "list") {
+      const skills = listUserSkills(home);
+      const width = Math.max(0, ...skills.map((skill) => skill.name.length));
+      for (const skill of skills) {
+        console.log(`  ${skill.name.padEnd(width)}  ${originLabel(skill.origin)}`);
+      }
+    } else if (action === "import") {
+      const path = resolve(requireArg(rest[1], "path"));
+      const set = requireArg(rest[2], "set");
+      const name = importSkill(home, path, set);
+      await relinkSkills(home, [set]);
+      console.log(`Imported ${name} into set ${set}`);
+    } else if (action === "doctor") {
+      let dir: string | undefined;
+      if (rest[1] !== undefined) {
+        dir = resolve(rest[1]);
+      }
+      printDoctor(await runSkillsDoctor(home, dir));
+    } else {
+      console.error(`Unknown skills action "${action}"\n\n${USAGE}`);
       process.exit(1);
     }
   },

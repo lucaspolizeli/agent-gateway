@@ -9,11 +9,21 @@ const fixture = join(import.meta.dirname, "..", "fixtures", "echo-server.ts");
 /**
  * Fake client CLIs keep one marker file per client, scope and folder, and refuse like the real ones:
  * adding what exists fails, and removing what does not exist prints `No MCP server named 'gw' ...`.
- * `<state>/<client>.fail-<verb>` makes that verb fail for the client.
+ * `<state>/<client>.fail-<verb>` makes that verb fail for the client. The skill probes print
+ * `<state>/<client>.probe`; Claude then hangs like the real one waiting on the model, until it is killed.
  */
 const FAKE_CLIENT = `#!/bin/sh
 name=$(basename "$0")
 echo "$name $*" >> "$CLI_LOG"
+case "$1" in
+  -p|debug|inspect)
+    echo "$name probe in $(pwd)" >> "$CLI_LOG"
+    if [ ! -e "$FAKE_STATE/$name.probe" ]; then echo "$name: not logged in" >&2; exit 2; fi
+    cat "$FAKE_STATE/$name.probe"
+    if [ "$1" = -p ]; then exec sleep 30; fi
+    exit 0
+    ;;
+esac
 scope=user
 prev=
 for arg in "$@"; do
@@ -96,6 +106,10 @@ export function createSandbox() {
       } else {
         execFileSync("rm", ["-f", marker]);
       }
+    },
+    /** What the `cli` skill probe prints; without one the probe fails. */
+    probe(cli: "claude" | "codex" | "grok", output: string) {
+      writeFileSync(join(state, `${cli}.probe`), output);
     },
     cliLog(): string[] {
       return readFileSync(log, "utf8").split("\n").filter(Boolean);
