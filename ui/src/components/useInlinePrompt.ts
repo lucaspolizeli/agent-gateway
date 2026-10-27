@@ -19,5 +19,15 @@ export function useInlinePrompt(open: boolean) {
     }
     wasOpen.current = open;
   }, [open]);
+  useEffect(() => {
+    return () => {
+      // A confirmed removal unmounts the trigger with its row, so focus falls back to the page content.
+      queueMicrotask(() => {
+        if (document.activeElement === null || document.activeElement === document.body) {
+          document.querySelector<HTMLElement>("main")?.focus();
+        }
+      });
+    };
+  }, []);
   return { trigger, entryRef };
 }

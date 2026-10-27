@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api/client.ts";
-import type { ConfigEdit } from "../contract.ts";
+import type { ConfigEdit, ResolvedProfileView } from "../contract.ts";
 import { queryKeys } from "./keys.ts";
 import { STATUS_POLL_MS } from "./profiles.ts";
 
@@ -20,6 +20,13 @@ export function useConfigEdit<TEdit extends ConfigEdit = ConfigEdit>(onDone?: (e
     mutationFn: (edit: TEdit) => api.editConfig(edit),
     onSuccess: async (config, edit) => {
       client.setQueryData(queryKeys.config, config);
+      if (edit.op === "removeProfile") {
+        // Dropped before the refetch below, which would otherwise ask the API for a profile that is gone.
+        client.setQueryData<ResolvedProfileView[]>(queryKeys.profiles, (views) =>
+          views?.filter((view) => view.name !== edit.name),
+        );
+        client.removeQueries({ queryKey: queryKeys.status(edit.name) });
+      }
       onDone?.(edit);
       await Promise.all([
         client.invalidateQueries({ queryKey: queryKeys.profiles }),

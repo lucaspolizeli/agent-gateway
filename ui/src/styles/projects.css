@@ -123,3 +123,9 @@
   font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
+
+/* A table cell grows to fit its unbreakable content, so the truncated path needs the cell to give up its min-content width. */
+.table td.project-dir {
+  max-width: 0;
+  width: 100%;
+}
