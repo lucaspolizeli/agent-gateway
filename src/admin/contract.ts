@@ -170,7 +170,18 @@ export type ProjectApplyResult = {
 // GET    /api/projects                                                 -> ProjectView[]
 // POST   /api/projects   body { dir, profile, transport }              -> ProjectApplyResult
 // DELETE /api/projects   body { dir }                                  -> ProjectApplyResult
-// POST   /api/sync                                                     -> ProjectApplyResult[]
+// POST   /api/sync                                                     -> SyncResult
+
+/** Every installed project lands in exactly one bucket, so nothing is skipped silently. */
+export type SyncResult = {
+  applied: ProjectApplyResult[];
+  /** Installed folders that no longer exist. */
+  missing: string[];
+  /** Installed folders refused because they resolve to user-level config (for example $HOME). */
+  unsafe: string[];
+  /** Projects that could not be applied at all, such as a profile removed from the config. */
+  failed: Array<{ dir: string; error: string }>;
+};
 
 // ---------- errors ----------
 
