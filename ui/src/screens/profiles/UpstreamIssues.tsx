@@ -19,9 +19,9 @@ export function UpstreamIssues({ profile, upstreams }: { profile: string; upstre
     return null;
   }
   return (
-    <section aria-label="Servidores sem tools" className="flex flex-col gap-2">
+    <section aria-label="Servers without tools" className="flex flex-col gap-2">
       <h3 className="flex items-center gap-2 text-sm font-medium">
-        Servidores sem tools
+        Servers without tools
         <Badge variant="destructive">{issues.length}</Badge>
       </h3>
       <ItemGroup className="gap-2">
@@ -60,7 +60,7 @@ function UpstreamIssue({ profile, upstream }: { profile: string; upstream: Upstr
         >
           {reconnect.isPending && <Spinner />}
           {!reconnect.isPending && <RotateCwIcon />}
-          Reconectar
+          Reconnect
         </Button>
       </ItemActions>
     </Item>
@@ -69,7 +69,7 @@ function UpstreamIssue({ profile, upstream }: { profile: string; upstream: Upstr
 
 function IssueDetail({ profile, upstream }: { profile: string; upstream: UpstreamState }) {
   if (upstream.state === "connecting") {
-    return <p className="text-xs text-muted-foreground">Conectando… as tools aparecem quando o servidor responder.</p>;
+    return <p className="text-xs text-muted-foreground">Connecting… Tools appear when the server responds.</p>;
   }
   if (upstream.state === "ready") {
     return null;
@@ -85,7 +85,7 @@ function IssueDetail({ profile, upstream }: { profile: string; upstream: Upstrea
           className="text-xs font-medium underline underline-offset-4"
           href={hrefFor({ screen: "profiles", profile, tab: "secrets" })}
         >
-          Definir {keys.join(", ")} na aba Segredos
+          Set {keys.join(", ")} on the Secrets tab
         </a>
       )}
     </>

@@ -60,7 +60,7 @@ function useElapsedSeconds(running: boolean): number {
 
 function scopeLabel(dir: string | null | undefined): string {
   if (dir === null || dir === undefined) {
-    return "Usuário";
+    return "User level";
   }
   return dir;
 }
@@ -79,18 +79,18 @@ export function DoctorView() {
       const flagged = report.rows.filter((row) => needsAttention(row, report.probes)).length;
       const failed = failedProbes(report).length;
       if (failed > 0) {
-        announce({ tone: "warn", message: `Verificação parcial: ${plural(failed, "CLI não respondeu", "CLIs não responderam")}.` });
+        announce({ tone: "warn", message: `Partial check: ${plural(failed, "CLI did not answer", "CLIs did not answer")}.` });
       } else if (flagged > 0 || report.brokenLinks.length > 0) {
-        announce({ tone: "warn", message: `${plural(flagged, "skill com problema", "skills com problemas")}.` });
+        announce({ tone: "warn", message: `${plural(flagged, "skill has problems", "skills have problems")}.` });
       } else {
-        announce({ tone: "ok", message: "Todas as skills aparecem nos três CLIs." });
+        announce({ tone: "ok", message: "Every skill shows up in all three CLIs." });
       }
     } catch (error) {
       let message = String(error);
       if (error instanceof Error) {
         message = error.message;
       }
-      announce({ tone: "error", message: `Diagnóstico falhou: ${message}` });
+      announce({ tone: "error", message: `Doctor failed: ${message}` });
     }
   }
 
@@ -99,16 +99,16 @@ export function DoctorView() {
       <Card size="sm">
         <CardContent className="flex flex-wrap items-end gap-3">
           <Field className="w-full sm:w-80">
-            <FieldLabel htmlFor="doctor-scope">Escopo</FieldLabel>
+            <FieldLabel htmlFor="doctor-scope">Scope</FieldLabel>
             <Select value={scope} onValueChange={setScope} disabled={doctor.isPending}>
               <SelectTrigger id="doctor-scope" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={USER_SCOPE}>Usuário</SelectItem>
+                <SelectItem value={USER_SCOPE}>User level</SelectItem>
                 {dirs.length > 0 && (
                   <SelectGroup>
-                    <SelectLabel>Projetos instalados</SelectLabel>
+                    <SelectLabel>Installed projects</SelectLabel>
                     {dirs.map((dir) => (
                       <SelectItem key={dir} value={dir}>
                         <span className="font-medium">{basename(dir)}</span>
@@ -123,10 +123,10 @@ export function DoctorView() {
           <Button type="button" disabled={doctor.isPending} onClick={() => void run()}>
             {doctor.isPending && <Spinner />}
             {!doctor.isPending && <StethoscopeIcon />}
-            Verificar nas CLIs
+            Run doctor
           </Button>
           <p className="basis-full text-xs text-muted-foreground">
-            Roda Claude, Codex e Grok de verdade e pergunta quais skills cada um descobre. Leva alguns segundos.
+            Runs Claude Code, Codex and Grok and asks which skills each one discovers. This takes a few seconds.
           </p>
         </CardContent>
       </Card>
@@ -158,7 +158,7 @@ function DoctorBody({ pending, elapsed, error, report, onlyProblems, onOnlyProbl
     return <Running elapsed={elapsed} />;
   }
   if (error !== null) {
-    return <ErrorBox title="O diagnóstico falhou" message={error.message} />;
+    return <ErrorBox title="Doctor failed" message={error.message} />;
   }
   if (report === undefined) {
     return (
@@ -167,15 +167,15 @@ function DoctorBody({ pending, elapsed, error, report, onlyProblems, onOnlyProbl
           <EmptyMedia variant="icon">
             <StethoscopeIcon />
           </EmptyMedia>
-          <EmptyTitle>Nenhuma verificação ainda</EmptyTitle>
+          <EmptyTitle>No doctor run yet</EmptyTitle>
           <EmptyDescription>
-            Escolha o escopo e verifique se cada skill aparece em Claude, Codex e Grok, com o frontmatter válido.
+            Choose a scope and check that every skill shows up in Claude Code, Codex and Grok with valid frontmatter.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button type="button" onClick={onRun}>
             <StethoscopeIcon />
-            Verificar nas CLIs
+            Run doctor
           </Button>
         </EmptyContent>
       </Empty>
@@ -191,12 +191,12 @@ function Running({ elapsed }: { elapsed: number }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Spinner />
-          Perguntando a Claude, Codex e Grok…
+          Asking Claude Code, Codex and Grok…
         </CardTitle>
-        <CardDescription role="status">{plural(elapsed, "segundo", "segundos")} até agora</CardDescription>
+        <CardDescription role="status">{plural(elapsed, "second", "seconds")} so far</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <Progress value={progress} aria-label="Progresso do diagnóstico" />
+        <Progress value={progress} aria-label="Doctor progress" />
         {Array.from({ length: 4 }, (_, index) => (
           <Skeleton key={index} className="h-8 w-full" />
         ))}
@@ -214,7 +214,7 @@ function Report({ report, onlyProblems, onOnlyProblems }: ReportProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Resultado para</span>
+        <span className="text-muted-foreground">Result for</span>
         <span className="font-medium">{scopeLabel(report.dir)}</span>
         <span className="flex-1" />
         {cliNames.map((cli) => (
@@ -224,9 +224,9 @@ function Report({ report, onlyProblems, onOnlyProblems }: ReportProps) {
       {failed.map(({ cli, error }) => (
         <Alert key={cli} variant="destructive">
           <CircleAlertIcon />
-          <AlertTitle>Não foi possível perguntar ao {cliLabels[cli]}</AlertTitle>
+          <AlertTitle>Could not ask {cliLabels[cli]}</AlertTitle>
           <AlertDescription>
-            <span>A coluna {cliLabels[cli]} mostra "?" porque a resposta dele não é conhecida.</span>
+            <span>The {cliLabels[cli]} column shows "?" because its answer is unknown.</span>
             <pre className="mt-1 w-full overflow-auto font-mono text-xs whitespace-pre-wrap">{error}</pre>
           </AlertDescription>
         </Alert>
@@ -235,12 +235,12 @@ function Report({ report, onlyProblems, onOnlyProblems }: ReportProps) {
         <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3">
           <span className="text-sm">
             {plural(report.rows.length, "skill", "skills")}
-            {flagged > 0 && <span className="text-destructive"> · {plural(flagged, "com problema", "com problemas")}</span>}
+            {flagged > 0 && <span className="text-destructive"> · {flagged} with problems</span>}
           </span>
           <span className="flex-1" />
           <div className="flex items-center gap-2">
             <Switch id="only-problems" checked={onlyProblems} onCheckedChange={onOnlyProblems} />
-            <Label htmlFor="only-problems">Só com problemas</Label>
+            <Label htmlFor="only-problems">Only problems</Label>
           </div>
         </div>
         <Table>
@@ -252,7 +252,7 @@ function Report({ report, onlyProblems, onOnlyProblems }: ReportProps) {
                   {cliLabels[cli]}
                 </TableHead>
               ))}
-              <TableHead className="pr-4">Problemas</TableHead>
+              <TableHead className="pr-4">Problems</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -266,7 +266,7 @@ function Report({ report, onlyProblems, onOnlyProblems }: ReportProps) {
                     {onlyProblems && (
                       <EmptyContent>
                         <Button type="button" variant="outline" size="sm" onClick={() => onOnlyProblems(false)}>
-                          Mostrar todas
+                          Show all
                         </Button>
                       </EmptyContent>
                     )}
@@ -287,12 +287,12 @@ function Report({ report, onlyProblems, onOnlyProblems }: ReportProps) {
 
 function emptyTitle(report: SkillsDoctorReport, onlyProblems: boolean): string {
   if (report.rows.length === 0) {
-    return "Nenhuma skill esperada neste escopo";
+    return "No skills expected in this scope";
   }
   if (onlyProblems) {
-    return "Nenhuma skill com problema";
+    return "No skills with problems";
   }
-  return "Nenhuma skill";
+  return "No skills";
 }
 
 function ProbeBadge({ cli, probe }: { cli: CliName; probe: CliProbe }) {
@@ -300,7 +300,7 @@ function ProbeBadge({ cli, probe }: { cli: CliName; probe: CliProbe }) {
     return (
       <Badge variant="destructive">
         <XIcon data-icon="inline-start" />
-        {cliLabels[cli]}: falhou
+        {cliLabels[cli]}: failed
       </Badge>
     );
   }
@@ -312,9 +312,9 @@ function ProbeBadge({ cli, probe }: { cli: CliName; probe: CliProbe }) {
 }
 
 const cellLooks: Record<Visibility, { variant: ComponentProps<typeof Badge>["variant"]; label: string }> = {
-  visible: { variant: "success", label: "enxerga" },
-  missing: { variant: "destructive", label: "não enxerga" },
-  unknown: { variant: "outline", label: "desconhecido: o CLI não respondeu" },
+  visible: { variant: "success", label: "sees it" },
+  missing: { variant: "destructive", label: "does not see it" },
+  unknown: { variant: "outline", label: "unknown: the CLI did not answer" },
 };
 
 const cellIcons: Record<Visibility, typeof CheckIcon> = { visible: CheckIcon, missing: XIcon, unknown: HelpCircleIcon };
@@ -348,7 +348,7 @@ function DoctorRow({ row, probes }: { row: SkillDoctorRow; probes: Record<CliNam
         );
       })}
       <TableCell className="max-w-0 pr-4 whitespace-normal">
-        {row.problems.length === 0 && <span className="text-xs text-muted-foreground">nenhum</span>}
+        {row.problems.length === 0 && <span className="text-xs text-muted-foreground">none</span>}
         <ul className="space-y-0.5">
           {row.problems.map((problem) => (
             <li key={problem} className="text-xs text-destructive">
@@ -366,16 +366,16 @@ function BrokenLinks({ links }: { links: string[] }) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <LinkIcon className="size-4" />
-        Nenhum link quebrado.
+        No broken links.
       </p>
     );
   }
   return (
     <Alert variant="warning">
       <LinkIcon />
-      <AlertTitle>{plural(links.length, "link quebrado", "links quebrados")}</AlertTitle>
+      <AlertTitle>{plural(links.length, "broken link", "broken links")}</AlertTitle>
       <AlertDescription>
-        <span>Symlinks nos diretórios de skills cujo destino não existe mais. Remova-os para limpar a lista.</span>
+        <span>Symlinks in skill folders whose target no longer exists. Remove them to clear this list.</span>
         <ul className="mt-1 w-full space-y-0.5">
           {links.map((link) => (
             <li key={link} className="truncate font-mono text-xs" title={link}>

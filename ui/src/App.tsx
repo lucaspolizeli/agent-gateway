@@ -42,10 +42,10 @@ function renderScreen(route: Route): ReactNode {
 
 const screenLabels: Record<Screen, string> = {
   status: "Status",
-  servers: "Servidores",
-  profiles: "Perfis",
+  servers: "Servers",
+  profiles: "Profiles",
   skills: "Skills",
-  projects: "Projetos",
+  projects: "Projects",
 };
 
 type Crumb = { label: string; href?: string };
@@ -117,7 +117,7 @@ function Shell({ route, sidebar, children }: { route: Route; sidebar: ReactNode;
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50"
         onClick={() => document.querySelector<HTMLElement>("main")?.focus()}
       >
-        Pular para o conteúdo
+        Skip to content
       </Button>
       {sidebar}
       <SidebarInset tabIndex={-1} className="min-w-0 outline-none">
@@ -161,8 +161,8 @@ export function App() {
     return (
       <Shell route={route} sidebar={<AppSidebar current={route.screen} counts={{}} />}>
         <ErrorBox
-          title="Sem acesso ao agw"
-          message="Esta aba não tem o token de admin: abra pelo comando `agw ui`. Em desenvolvimento, use a URL com #t= que o Vite imprime ao iniciar."
+          title="No access to agw"
+          message="This tab has no admin token. Open the UI with `agw ui`. In development, use the URL with #t= that Vite prints at startup."
         />
       </Shell>
     );
@@ -176,15 +176,15 @@ function ConnectedApp({ route }: { route: Route }) {
   const skillSets = useSkillSets();
   const projects = useProjects();
   const counts: Partial<Record<Screen, NavCount>> = {
-    status: { count: health.summary.attention.length, attention: true, label: "itens que precisam de atenção" },
-    servers: { count: Object.keys(config.data?.servers ?? {}).length, attention: false, label: "servidores" },
-    profiles: { count: Object.keys(config.data?.profiles ?? {}).length, attention: false, label: "perfis" },
+    status: { count: health.summary.attention.length, attention: true, label: "items need attention" },
+    servers: { count: Object.keys(config.data?.servers ?? {}).length, attention: false, label: "servers" },
+    profiles: { count: Object.keys(config.data?.profiles ?? {}).length, attention: false, label: "profiles" },
     skills: {
       count: (skillSets.data ?? []).reduce((total, set) => total + set.skills.length, 0),
       attention: false,
       label: "skills",
     },
-    projects: { count: projects.data?.length ?? 0, attention: false, label: "projetos" },
+    projects: { count: projects.data?.length ?? 0, attention: false, label: "projects" },
   };
   let summary = undefined;
   if (!health.isPending) {

@@ -20,10 +20,10 @@ export function SecretsEditor({ profile, missing }: { profile: string; missing: 
   return (
     <div className="flex flex-col gap-6">
       <FieldSet>
-        <FieldLegend>Segredos de {profile}</FieldLegend>
+        <FieldLegend>Secrets of {profile}</FieldLegend>
         <FieldDescription>
-          Preenchem as referências <code className="font-mono">{"${NOME}"}</code> dos servidores. Os valores nunca são
-          exibidos: só dá para definir, substituir ou remover.
+          Secrets fill the <code className="font-mono">{"${NAME}"}</code> references of servers. Values are never shown. You
+          can only set, replace or remove them.
         </FieldDescription>
       </FieldSet>
       <QueryState query={secrets}>
@@ -40,8 +40,8 @@ export function SecretsEditor({ profile, missing }: { profile: string; missing: 
                     <EmptyMedia variant="icon">
                       <KeyRoundIcon />
                     </EmptyMedia>
-                    <EmptyTitle>Nenhum segredo neste perfil</EmptyTitle>
-                    <EmptyDescription>Adicione um abaixo quando um servidor usar {"${NOME}"}.</EmptyDescription>
+                    <EmptyTitle>No secrets in this profile</EmptyTitle>
+                    <EmptyDescription>Add one below when a server uses {"${NAME}"}.</EmptyDescription>
                   </EmptyHeader>
                 </Empty>
               )}
@@ -50,10 +50,10 @@ export function SecretsEditor({ profile, missing }: { profile: string; missing: 
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Chave</TableHead>
-                        <TableHead>Estado</TableHead>
+                        <TableHead>Key</TableHead>
+                        <TableHead>State</TableHead>
                         <TableHead className="text-right">
-                          <span className="sr-only">Ações</span>
+                          <span className="sr-only">Actions</span>
                         </TableHead>
                       </TableRow>
                     </TableHeader>
@@ -82,8 +82,8 @@ function SecretRow({ profile, secretKey, missing }: RowProps) {
     <TableRow>
       <TableCell className="font-mono">{secretKey}</TableCell>
       <TableCell>
-        {missing && <Badge variant="warning">faltando</Badge>}
-        {!missing && <Badge variant="success">definido</Badge>}
+        {missing && <Badge variant="warning">missing</Badge>}
+        {!missing && <Badge variant="success">set</Badge>}
       </TableCell>
       <TableCell>
         <div className="flex justify-end gap-2">
@@ -94,15 +94,15 @@ function SecretRow({ profile, secretKey, missing }: RowProps) {
               label={
                 <>
                   <Trash2Icon />
-                  Remover
+                  Remove
                 </>
               }
-              title={`Remover ${secretKey}?`}
-              description={`Os servidores de ${profile} que usam \${${secretKey}} deixam de conectar até que ele seja definido de novo.`}
-              confirmLabel="Remover"
+              title={`Remove ${secretKey}?`}
+              description={`Servers in ${profile} that use \${${secretKey}} stop connecting until it is set again.`}
+              confirmLabel="Remove"
               disabled={remove.isPending}
               onConfirm={() =>
-                void withFeedback(remove.mutateAsync({ profile, key: secretKey }), `${secretKey} removido.`)
+                void withFeedback(remove.mutateAsync({ profile, key: secretKey }), `${secretKey} removed.`)
               }
             />
           )}
@@ -116,9 +116,9 @@ function SetValuePopover({ profile, secretKey, missing }: RowProps) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const set = useSetSecret();
-  let label = "Substituir";
+  let label = "Replace";
   if (missing) {
-    label = "Definir";
+    label = "Set";
   }
   return (
     <Popover
@@ -139,7 +139,7 @@ function SetValuePopover({ profile, secretKey, missing }: RowProps) {
           className="flex flex-col gap-3"
           onSubmit={async (event) => {
             event.preventDefault();
-            const saved = await withFeedback(set.mutateAsync({ profile, key: secretKey, value }), `${secretKey} salvo.`);
+            const saved = await withFeedback(set.mutateAsync({ profile, key: secretKey, value }), `${secretKey} saved.`);
             if (saved !== undefined) {
               setOpen(false);
               setValue("");
@@ -147,13 +147,13 @@ function SetValuePopover({ profile, secretKey, missing }: RowProps) {
           }}
         >
           <Field data-invalid={set.error !== null}>
-            <FieldLabel htmlFor={`secret-${secretKey}`}>Valor de {secretKey}</FieldLabel>
+            <FieldLabel htmlFor={`secret-${secretKey}`}>Value of {secretKey}</FieldLabel>
             <Input
               id={`secret-${secretKey}`}
               type="password"
               autoComplete="new-password"
               autoFocus
-              placeholder="valor"
+              placeholder="value"
               value={value}
               onChange={(event) => {
                 setValue(event.target.value);
@@ -164,11 +164,11 @@ function SetValuePopover({ profile, secretKey, missing }: RowProps) {
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              Cancelar
+              Cancel
             </Button>
             <Button type="submit" disabled={value === "" || set.isPending}>
               {set.isPending && <Spinner />}
-              Salvar
+              Save
             </Button>
           </div>
         </form>
@@ -186,7 +186,7 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
   const keyHint = hintFor(key, keyProblem);
   let replaces: string | undefined = undefined;
   if (existing.includes(key)) {
-    replaces = `Substitui o valor atual de ${key}.`;
+    replaces = `Replaces the current value of ${key}.`;
   }
   return (
     <form
@@ -194,23 +194,23 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
       onChange={() => set.reset()}
       onSubmit={async (event) => {
         event.preventDefault();
-        const saved = await withFeedback(set.mutateAsync({ profile, key, value }), `${key} salvo.`);
+        const saved = await withFeedback(set.mutateAsync({ profile, key, value }), `${key} saved.`);
         if (saved !== undefined) {
           setValue("");
           setSecretKey("");
         }
       }}
     >
-      <span className="text-sm font-medium">Novo segredo</span>
+      <span className="text-sm font-medium">New secret</span>
       <div className="grid gap-2 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto]">
         <Field data-invalid={keyHint !== undefined}>
           <FieldLabel htmlFor="new-secret-key" className="sr-only">
-            Chave do novo segredo
+            Key of the new secret
           </FieldLabel>
           <Input
             id="new-secret-key"
             className="font-mono"
-            placeholder="CHAVE"
+            placeholder="KEY"
             value={secretKey}
             aria-invalid={keyHint !== undefined}
             onChange={(event) => setSecretKey(event.target.value)}
@@ -218,13 +218,13 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
         </Field>
         <Field>
           <FieldLabel htmlFor="new-secret-value" className="sr-only">
-            Valor do novo segredo
+            Value of the new secret
           </FieldLabel>
           <Input
             id="new-secret-value"
             type="password"
             autoComplete="new-password"
-            placeholder="valor"
+            placeholder="value"
             value={value}
             onChange={(event) => setValue(event.target.value)}
           />
@@ -232,7 +232,7 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
         <Button type="submit" disabled={keyProblem !== undefined || value === "" || set.isPending}>
           {set.isPending && <Spinner />}
           {!set.isPending && <PlusIcon />}
-          Adicionar
+          Add
         </Button>
       </div>
       <FieldError>{keyHint ?? set.error?.message}</FieldError>

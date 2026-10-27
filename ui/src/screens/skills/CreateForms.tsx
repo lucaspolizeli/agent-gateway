@@ -29,7 +29,7 @@ export function NewSetDialog({ open, sets, onClose }: SetProps) {
   const trimmed = name.trim();
   let problem = skillSetNameProblem(trimmed);
   if (problem === undefined && sets.some((set) => set.name === trimmed)) {
-    problem = "Já existe um conjunto com esse nome.";
+    problem = "A skill set with this name already exists. Choose another name.";
   }
   const hint = hintFor(trimmed, problem);
   return (
@@ -51,7 +51,7 @@ export function NewSetDialog({ open, sets, onClose }: SetProps) {
             if (problem !== undefined) {
               return;
             }
-            const created = await withFeedback(create.mutateAsync(trimmed), `Conjunto ${trimmed} criado.`);
+            const created = await withFeedback(create.mutateAsync(trimmed), `Skill set ${trimmed} created.`);
             if (created !== undefined) {
               setName("");
               onClose();
@@ -59,15 +59,15 @@ export function NewSetDialog({ open, sets, onClose }: SetProps) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Novo conjunto</DialogTitle>
-            <DialogDescription>Um conjunto agrupa skills. Os perfis escolhem quais conjuntos levam aos projetos.</DialogDescription>
+            <DialogTitle>New skill set</DialogTitle>
+            <DialogDescription>A skill set groups skills. Profiles choose which skill sets reach their projects.</DialogDescription>
           </DialogHeader>
           <Field data-invalid={hint !== undefined || create.error !== null}>
-            <FieldLabel htmlFor="new-set-name">Nome do conjunto</FieldLabel>
+            <FieldLabel htmlFor="new-set-name">Skill set name</FieldLabel>
             <Input
               id="new-set-name"
               autoFocus
-              placeholder="nova-empresa"
+              placeholder="new-company"
               value={name}
               aria-invalid={hint !== undefined}
               onChange={(event) => {
@@ -80,12 +80,12 @@ export function NewSetDialog({ open, sets, onClose }: SetProps) {
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
-                Cancelar
+                Cancel
               </Button>
             </DialogClose>
             <Button type="submit" disabled={problem !== undefined || create.isPending}>
               {create.isPending && <Spinner />}
-              Criar conjunto
+              Create skill set
             </Button>
           </DialogFooter>
         </form>
@@ -114,7 +114,7 @@ export function NewSkillDialog({ open, sets, defaultSet, onClose }: SkillProps) 
   const taken = sets.find((candidate) => candidate.name === set)?.skills.some((skill) => skill.name === trimmed);
   let nameProblem = skillNameProblem(trimmed);
   if (nameProblem === undefined && taken === true) {
-    nameProblem = "Já existe neste conjunto.";
+    nameProblem = "This skill set already has a skill with this name.";
   }
   const descriptionProblem = skillDescriptionProblem(trimmedDescription);
   const nameHint = hintFor(trimmed, nameProblem);
@@ -147,7 +147,7 @@ export function NewSkillDialog({ open, sets, defaultSet, onClose }: SkillProps) 
             }
             const created = await withFeedback(
               create.mutateAsync({ set, name: trimmed, content: skillTemplate(trimmed, trimmedDescription) }),
-              `Skill ${trimmed} criada em ${set}.`,
+              `Skill ${trimmed} created in ${set}.`,
             );
             if (created !== undefined) {
               onClose();
@@ -157,16 +157,16 @@ export function NewSkillDialog({ open, sets, defaultSet, onClose }: SkillProps) 
           }}
         >
           <DialogHeader>
-            <DialogTitle>Nova skill</DialogTitle>
-            <DialogDescription>Cria o SKILL.md com nome e descrição. O resto você edita depois.</DialogDescription>
+            <DialogTitle>New skill</DialogTitle>
+            <DialogDescription>Creates the SKILL.md with a name and description. You edit the rest afterwards.</DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="new-skill-set">Conjunto</FieldLabel>
+                <FieldLabel htmlFor="new-skill-set">Skill set</FieldLabel>
                 <Select value={set} onValueChange={setChosenSet}>
                   <SelectTrigger id="new-skill-set" className="w-full">
-                    <SelectValue placeholder="Escolha um conjunto" />
+                    <SelectValue placeholder="Choose a skill set" />
                   </SelectTrigger>
                   <SelectContent>
                     {sets.map((candidate) => (
@@ -178,11 +178,11 @@ export function NewSkillDialog({ open, sets, defaultSet, onClose }: SkillProps) 
                 </Select>
               </Field>
               <Field data-invalid={nameHint !== undefined}>
-                <FieldLabel htmlFor="new-skill-name">Nome</FieldLabel>
+                <FieldLabel htmlFor="new-skill-name">Name</FieldLabel>
                 <Input
                   id="new-skill-name"
                   autoFocus
-                  placeholder="nome-da-skill"
+                  placeholder="skill-name"
                   value={name}
                   aria-invalid={nameHint !== undefined}
                   onChange={(event) => setName(event.target.value)}
@@ -191,10 +191,10 @@ export function NewSkillDialog({ open, sets, defaultSet, onClose }: SkillProps) 
               </Field>
             </div>
             <Field data-invalid={descriptionHint !== undefined}>
-              <FieldLabel htmlFor="new-skill-description">Descrição</FieldLabel>
+              <FieldLabel htmlFor="new-skill-description">Description</FieldLabel>
               <Input
                 id="new-skill-description"
-                placeholder="Quando usar esta skill"
+                placeholder="When to use this skill"
                 value={description}
                 aria-invalid={descriptionHint !== undefined}
                 onChange={(event) => setDescription(event.target.value)}
@@ -206,12 +206,12 @@ export function NewSkillDialog({ open, sets, defaultSet, onClose }: SkillProps) 
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
-                Cancelar
+                Cancel
               </Button>
             </DialogClose>
             <Button type="submit" disabled={blocked}>
               {create.isPending && <Spinner />}
-              Criar skill
+              Create skill
             </Button>
           </DialogFooter>
         </form>

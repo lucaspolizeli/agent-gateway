@@ -66,7 +66,7 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
 
   function submit() {
     if (dirty && !save.isPending) {
-      void withFeedback(save.mutateAsync({ set: doc.set, name: doc.name, content }), "SKILL.md salvo.");
+      void withFeedback(save.mutateAsync({ set: doc.set, name: doc.name, content }), "SKILL.md saved.");
     }
   }
 
@@ -103,10 +103,10 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          {stale && <StaleNotice message="O SKILL.md foi salvo em outro lugar enquanto você editava. Recarregar troca suas edições pela versão salva." onReload={reload} />}
+          {stale && <StaleNotice message="This SKILL.md was saved somewhere else while you were editing. Reload replaces your edits with the saved version." onReload={reload} />}
           <Textarea
             className="min-h-[max(55svh,22rem)] resize-y font-mono text-[13px] leading-relaxed"
-            aria-label={`Conteúdo de ${doc.name}/SKILL.md`}
+            aria-label={`Content of ${doc.name}/SKILL.md`}
             spellCheck={false}
             value={content}
             onChange={(event) => {
@@ -116,10 +116,10 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
           />
           {save.error !== null && <FieldError className="whitespace-pre-wrap">{save.error.message}</FieldError>}
           <p className="text-xs text-muted-foreground">
-            {doc.files.length === 0 && "Sem outros arquivos na pasta."}
+            {doc.files.length === 0 && "No other files in the folder."}
             {doc.files.length > 0 && (
               <>
-                Outros arquivos: <span className="font-mono">{doc.files.join(", ")}</span>
+                Other files: <span className="font-mono">{doc.files.join(", ")}</span>
               </>
             )}
           </p>
@@ -137,13 +137,13 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
               }}
             >
               <Undo2Icon />
-              Descartar
+              Discard
             </Button>
           )}
           <Button type="submit" disabled={!dirty || save.isPending}>
             {save.isPending && <Spinner />}
             {!save.isPending && <SaveIcon />}
-            Salvar
+            Save
             <Kbd className="bg-primary-foreground/15 text-primary-foreground">{saveShortcut}</Kbd>
           </Button>
         </ActionBar>
@@ -164,8 +164,8 @@ function MoveControl({ doc, setNames }: { doc: SkillDocument; setNames: string[]
   return (
     <div className="flex items-center gap-1">
       <Select value={toSet} onValueChange={setToSet}>
-        <SelectTrigger className="w-36" aria-label="Mover para o conjunto">
-          <SelectValue placeholder="Conjunto" />
+        <SelectTrigger className="w-36" aria-label="Move to skill set">
+          <SelectValue placeholder="Skill set" />
         </SelectTrigger>
         <SelectContent>
           {targets.map((set) => (
@@ -181,13 +181,13 @@ function MoveControl({ doc, setNames }: { doc: SkillDocument; setNames: string[]
         disabled={toSet === "" || move.isPending}
         onClick={async () => {
           if (await confirmLeave()) {
-            await withFeedback(move.mutateAsync({ set: doc.set, name: doc.name, toSet }), `${doc.name} movida para ${toSet}.`);
+            await withFeedback(move.mutateAsync({ set: doc.set, name: doc.name, toSet }), `${doc.name} moved to ${toSet}.`);
           }
         }}
       >
         {move.isPending && <Spinner />}
         {!move.isPending && <ArrowRightLeftIcon />}
-        Mover
+        Move
       </Button>
     </div>
   );
@@ -200,16 +200,16 @@ function DeleteControl({ doc }: { doc: SkillDocument }) {
       label={
         <>
           <Trash2Icon />
-          Excluir
+          Delete
         </>
       }
-      title={`Excluir ${doc.name}?`}
-      description="Apaga a pasta da skill com todos os arquivos. Não dá para desfazer."
-      confirmLabel="Excluir"
+      title={`Delete ${doc.name}?`}
+      description="Deletes the skill folder and all its files. This cannot be undone."
+      confirmLabel="Delete"
       disabled={remove.isPending}
       onConfirm={async () => {
         if (await confirmLeave()) {
-          await withFeedback(remove.mutateAsync({ set: doc.set, name: doc.name }), `${doc.name} excluída.`);
+          await withFeedback(remove.mutateAsync({ set: doc.set, name: doc.name }), `${doc.name} deleted.`);
         }
       }}
     />

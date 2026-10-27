@@ -58,8 +58,8 @@ export function ProfilesScreen({ selected, tab }: Props) {
   return (
     <>
       <PageHeader
-        title="Perfis"
-        description="Um perfil por empresa: servidores, skills, tools e segredos, herdados pela cadeia."
+        title="Profiles"
+        description="One profile per company: servers, skills, tools and secrets, inherited along the chain."
         actions={<NewProfileDialog open={creating} onOpenChange={setCreating} existing={existing} />}
       />
       <QueryState query={config}>
@@ -90,7 +90,7 @@ function NewProfileDialog({ open, onOpenChange, existing }: NewProfileProps) {
   const trimmed = name.trim();
   let problem = profileNameProblem(trimmed);
   if (problem === undefined && existing.includes(trimmed)) {
-    problem = "Já existe um perfil com esse nome.";
+    problem = "A profile with this name already exists. Choose another name.";
   }
   const hint = hintFor(trimmed, problem);
   return (
@@ -105,7 +105,7 @@ function NewProfileDialog({ open, onOpenChange, existing }: NewProfileProps) {
       <DialogTrigger asChild>
         <Button type="button">
           <PlusIcon />
-          Novo perfil
+          New profile
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -118,7 +118,7 @@ function NewProfileDialog({ open, onOpenChange, existing }: NewProfileProps) {
             }
             const created = await withFeedback(
               create.mutateAsync({ op: "upsertProfile", name: trimmed, profile: emptyProfile }),
-              `Perfil ${trimmed} criado.`,
+              `Profile ${trimmed} created.`,
             );
             if (created !== undefined) {
               onOpenChange(false);
@@ -127,15 +127,15 @@ function NewProfileDialog({ open, onOpenChange, existing }: NewProfileProps) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Novo perfil</DialogTitle>
-            <DialogDescription>Um perfil reúne servidores, skills e segredos. Ele pode estender outros.</DialogDescription>
+            <DialogTitle>New profile</DialogTitle>
+            <DialogDescription>A profile groups servers, skills and secrets. It can extend other profiles.</DialogDescription>
           </DialogHeader>
           <Field data-invalid={hint !== undefined || create.error !== null}>
-            <FieldLabel htmlFor="new-profile-name">Nome</FieldLabel>
+            <FieldLabel htmlFor="new-profile-name">Name</FieldLabel>
             <Input
               id="new-profile-name"
               autoFocus
-              placeholder="nova-empresa"
+              placeholder="new-company"
               value={name}
               aria-invalid={hint !== undefined}
               onChange={(event) => {
@@ -148,12 +148,12 @@ function NewProfileDialog({ open, onOpenChange, existing }: NewProfileProps) {
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
-                Cancelar
+                Cancel
               </Button>
             </DialogClose>
             <Button type="submit" disabled={problem !== undefined || create.isPending}>
               {create.isPending && <Spinner />}
-              Criar perfil
+              Create profile
             </Button>
           </DialogFooter>
         </form>
@@ -173,17 +173,17 @@ type ListProps = {
 function ProfileList({ config, views, statuses, selected, onCreate }: ListProps) {
   const names = Object.keys(config.profiles).sort();
   return (
-    <ListPane label="Perfis">
+    <ListPane label="Profiles">
       {names.length === 0 && (
         <DetailPlaceholder
           className="min-h-0 border-0 p-4"
           icon={<LayersIcon />}
-          title="Nenhum perfil"
-          description="Crie o primeiro perfil."
+          title="No profiles yet"
+          description="Create your first profile."
           action={
             <Button type="button" size="sm" onClick={onCreate}>
               <PlusIcon />
-              Novo perfil
+              New profile
             </Button>
           }
         />
@@ -201,7 +201,7 @@ function ProfileList({ config, views, statuses, selected, onCreate }: ListProps)
               <span className="min-w-0 flex-1">
                 <Chain chain={view?.chain ?? [name]} />
               </span>
-              {missing > 0 && <Badge variant="warning">{plural(missing, "segredo", "segredos")}</Badge>}
+              {missing > 0 && <Badge variant="warning">{plural(missing, "missing secret", "missing secrets")}</Badge>}
             </span>
           </ListLink>
         );
@@ -217,12 +217,12 @@ function DetailPane({ config, selected, tab, onCreate }: PaneProps) {
     return (
       <DetailPlaceholder
         icon={<LayersIcon />}
-        title="Selecione um perfil"
-        description="Veja a composição, as tools expostas e os segredos de um perfil."
+        title="Select a profile"
+        description="See a profile's composition, exposed tools and secrets."
         action={
           <Button type="button" variant="outline" onClick={onCreate}>
             <PlusIcon />
-            Novo perfil
+            New profile
           </Button>
         }
       />
@@ -232,8 +232,8 @@ function DetailPane({ config, selected, tab, onCreate }: PaneProps) {
     return (
       <DetailPlaceholder
         icon={<LayersIcon />}
-        title={`O perfil ${selected} não existe`}
-        description="Ele pode ter sido removido ou renomeado fora daqui."
+        title={`Profile ${selected} does not exist`}
+        description="It may have been removed or renamed outside the UI."
       />
     );
   }
@@ -289,16 +289,16 @@ function ProfileDetail({ name, config, tab }: DetailProps) {
             label={
               <>
                 <Trash2Icon />
-                Remover perfil
+                Remove profile
               </>
             }
-            title={`Remover o perfil ${name}?`}
-            description="Os segredos dele ficam no disco. A remoção falha se outro perfil estende este ou se um projeto o usa."
-            confirmLabel="Remover"
+            title={`Remove profile ${name}?`}
+            description="Its secrets stay on disk. Removal fails if another profile extends it or a project uses it."
+            confirmLabel="Remove"
             disabled={remove.isPending}
             onConfirm={async () => {
               if (await confirmLeave()) {
-                await withFeedback(remove.mutateAsync({ op: "removeProfile", name }), `Perfil ${name} removido.`);
+                await withFeedback(remove.mutateAsync({ op: "removeProfile", name }), `Profile ${name} removed.`);
               }
             }}
           />
@@ -326,7 +326,7 @@ function ProfileDetail({ name, config, tab }: DetailProps) {
             ))}
           </TabsList>
           {skillSets.error !== null && (
-            <ErrorBox title="Conjuntos de skills indisponíveis" message={skillSets.error.message} />
+            <ErrorBox title="Skill sets unavailable" message={skillSets.error.message} />
           )}
           <TabsContent value="composition" className="pt-2">
             <ProfileSpecEditor

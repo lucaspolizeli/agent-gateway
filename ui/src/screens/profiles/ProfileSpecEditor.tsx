@@ -48,43 +48,43 @@ export function ProfileSpecEditor({ name, spec, config, view, skillSets }: Props
         event.preventDefault();
         void withFeedback(
           save.mutateAsync({ op: "upsertProfile", name, profile: { ...draft, hiddenTools: spec.hiddenTools } }),
-          "Perfil salvo.",
+          "Profile saved.",
         );
       }}
     >
-      {stale && <StaleNotice message="Este perfil foi salvo em outro lugar enquanto você editava. Recarregar troca suas edições pela versão salva." onReload={reload} />}
+      {stale && <StaleNotice message="This profile was saved somewhere else while you were editing. Reload replaces your edits with the saved version." onReload={reload} />}
       <FieldSet>
-        <FieldLegend>Herança e recursos</FieldLegend>
-        <FieldDescription>O que este perfil herda e acrescenta. Os itens dos perfis pais entram sozinhos.</FieldDescription>
+        <FieldLegend>Inheritance and resources</FieldLegend>
+        <FieldDescription>What this profile inherits and adds. Items from parent profiles are included automatically.</FieldDescription>
         <div className="grid gap-3 md:grid-cols-3">
           <CheckboxGroup
-            legend="Estende"
+            legend="Extends"
             options={parentOptions}
             selected={draft.extends}
-            empty="Nenhum outro perfil."
+            empty="No other profiles."
             onChange={(extendsList) => edit({ ...draft, extends: extendsList })}
           />
           <CheckboxGroup
-            legend="Servidores"
+            legend="Servers"
             mono
             options={Object.keys(config.servers).sort()}
             selected={draft.servers}
-            empty="Nenhum servidor cadastrado."
+            empty="No servers yet."
             onChange={(servers) => edit({ ...draft, servers })}
           />
           <CheckboxGroup
-            legend="Conjuntos de skills"
+            legend="Skill sets"
             options={skillOptions}
             selected={draft.skills}
-            empty="Nenhum conjunto."
+            empty="No skill sets yet."
             onChange={(skills) => edit({ ...draft, skills })}
           />
         </div>
       </FieldSet>
       <FieldSet>
-        <FieldLegend>Resultado da cadeia</FieldLegend>
-        <FieldDescription>O que fica salvo hoje, já com a herança resolvida.</FieldDescription>
-        {view === undefined && <p className="text-sm text-muted-foreground">Visão resolvida indisponível.</p>}
+        <FieldLegend>Resolved chain</FieldLegend>
+        <FieldDescription>What is saved now, with inheritance resolved.</FieldDescription>
+        {view === undefined && <p className="text-sm text-muted-foreground">Resolved view unavailable.</p>}
         {view !== undefined && <ResolvedPanel view={view} />}
       </FieldSet>
       {save.error !== null && <FieldError className="whitespace-pre-wrap">{save.error.message}</FieldError>}
@@ -101,13 +101,13 @@ export function ProfileSpecEditor({ name, spec, config, view, skillSets }: Props
             }}
           >
             <Undo2Icon />
-            Descartar
+            Discard
           </Button>
         )}
         <Button type="submit" disabled={!dirty || save.isPending}>
           {save.isPending && <Spinner />}
           {!save.isPending && <SaveIcon />}
-          Salvar perfil
+          Save profile
         </Button>
       </ActionBar>
     </form>

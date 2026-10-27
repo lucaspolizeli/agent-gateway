@@ -24,7 +24,7 @@ export function ConnectionFields({ form, onChange }: Props) {
   return (
     <>
       <Field>
-        <FieldLabel htmlFor="server-command">Comando</FieldLabel>
+        <FieldLabel htmlFor="server-command">Command</FieldLabel>
         <Input
           id="server-command"
           className="font-mono"
@@ -34,7 +34,7 @@ export function ConnectionFields({ form, onChange }: Props) {
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="server-args">Argumentos</FieldLabel>
+        <FieldLabel htmlFor="server-args">Arguments</FieldLabel>
         <Textarea
           id="server-args"
           className="min-h-16 font-mono"
@@ -43,7 +43,7 @@ export function ConnectionFields({ form, onChange }: Props) {
           placeholder={"-y\n@upstash/context7-mcp"}
           onChange={(event) => onChange({ ...form, args: event.target.value })}
         />
-        <FieldDescription>Um argumento por linha, então um argumento pode ter espaços.</FieldDescription>
+        <FieldDescription>One argument per line, so an argument can contain spaces.</FieldDescription>
       </Field>
     </>
   );
@@ -63,8 +63,8 @@ export function VariablesFields({ form, onChange }: Props) {
   return (
     <KeyValueEditor
       rows={form.env}
-      keyPlaceholder="NOME"
-      valuePlaceholder="valor ou ${SEGREDO}"
+      keyPlaceholder="NAME"
+      valuePlaceholder="value or ${SECRET}"
       onChange={(env) => onChange({ ...form, env })}
     />
   );
@@ -73,12 +73,12 @@ export function VariablesFields({ form, onChange }: Props) {
 export function AdvancedFields({ form, onChange }: { form: StdioForm; onChange: (form: StdioForm) => void }) {
   return (
     <Field>
-      <FieldLabel htmlFor="server-cwd">Diretório de trabalho (opcional)</FieldLabel>
+      <FieldLabel htmlFor="server-cwd">Working folder (optional)</FieldLabel>
       <Input
         id="server-cwd"
         className="font-mono"
         value={form.cwd}
-        placeholder="/caminho/absoluto"
+        placeholder="/absolute/path"
         onChange={(event) => onChange({ ...form, cwd: event.target.value })}
       />
     </Field>

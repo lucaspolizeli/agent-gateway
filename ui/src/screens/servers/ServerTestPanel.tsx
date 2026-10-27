@@ -20,12 +20,12 @@ export function TestControls({ profiles, profile, onProfileChange, disabled, onR
   return (
     <>
       <Select value={profile} onValueChange={onProfileChange}>
-        <SelectTrigger aria-label="Segredos do perfil usados no teste" className="w-44">
-          <span className="text-muted-foreground">Segredos de</span>
+        <SelectTrigger aria-label="Profile secrets used for the test" className="w-44">
+          <span className="text-muted-foreground">Secrets from</span>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NO_PROFILE}>nenhum perfil</SelectItem>
+          <SelectItem value={NO_PROFILE}>no profile</SelectItem>
           {profiles.map((name) => (
             <SelectItem key={name} value={name}>
               {name}
@@ -35,7 +35,7 @@ export function TestControls({ profiles, profile, onProfileChange, disabled, onR
       </Select>
       <Button type="button" variant="outline" disabled={disabled} onClick={onRun}>
         <PlugZapIcon />
-        Testar conexão
+        Test connection
       </Button>
     </>
   );
@@ -46,7 +46,7 @@ export function TestResultView({ result }: { result: ServerTestResult }) {
     return (
       <Alert variant="destructive">
         <CircleXIcon />
-        <AlertTitle>Falhou em {result.durationMs} ms</AlertTitle>
+        <AlertTitle>Failed after {result.durationMs} ms</AlertTitle>
         <AlertDescription className="font-mono text-xs whitespace-pre-wrap">{result.error}</AlertDescription>
       </Alert>
     );
@@ -55,7 +55,7 @@ export function TestResultView({ result }: { result: ServerTestResult }) {
     <Alert>
       <CircleCheckIcon className="text-success" />
       <AlertTitle>
-        Conectou em {result.durationMs} ms · {plural(result.tools.length, "tool", "tools")}
+        Connected in {result.durationMs} ms · {plural(result.tools.length, "tool", "tools")}
       </AlertTitle>
       <AlertDescription>
         <ul className="mt-1 w-full space-y-1">

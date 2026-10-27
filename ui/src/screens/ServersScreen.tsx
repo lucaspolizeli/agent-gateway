@@ -33,12 +33,12 @@ export function ServersScreen({ selected }: { selected?: string }) {
   return (
     <>
       <PageHeader
-        title="Servidores"
-        description="Servidores MCP que os perfis podem usar. A saúde vem dos perfis rodando."
+        title="Servers"
+        description="MCP servers that profiles can use. Health comes from the running profiles."
         actions={
           <Button type="button" onClick={() => void startCreating()}>
             <PlusIcon />
-            Novo servidor
+            New server
           </Button>
         }
       />
@@ -104,17 +104,17 @@ type ListProps = {
 function ServerList({ config, health, selected, creating, onCreate }: ListProps) {
   const names = Object.keys(config.servers).sort();
   return (
-    <ListPane label="Servidores">
+    <ListPane label="Servers">
       {names.length === 0 && (
         <DetailPlaceholder
           className="min-h-0 border-0 p-4"
           icon={<ServerIcon />}
-          title="Nenhum servidor"
-          description="Cadastre o primeiro servidor MCP."
+          title="No servers yet"
+          description="Add your first MCP server."
           action={
             <Button type="button" size="sm" onClick={onCreate}>
               <PlusIcon />
-              Novo servidor
+              New server
             </Button>
           }
         />
@@ -151,12 +151,12 @@ function EditorPane({ config, target, onCreate, onCreated }: PaneProps) {
     return (
       <DetailPlaceholder
         icon={<ServerIcon />}
-        title="Selecione um servidor"
-        description="Escolha um servidor na lista para editar, testar ou remover."
+        title="Select a server"
+        description="Choose a server from the list to edit, test or remove it."
         action={
           <Button type="button" variant="outline" onClick={onCreate}>
             <PlusIcon />
-            Novo servidor
+            New server
           </Button>
         }
       />

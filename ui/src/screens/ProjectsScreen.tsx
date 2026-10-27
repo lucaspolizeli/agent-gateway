@@ -25,8 +25,8 @@ import { useInstallProject, useProjects, useSyncAll, useUninstallProject } from 
 
 const transports: Transport[] = ["stdio", "http"];
 const transportHints: Record<Transport, string> = {
-  stdio: "um processo por cliente",
-  http: "agw serve compartilhado",
+  stdio: "one process per client",
+  http: "shared agw serve",
 };
 
 type LastApply = { action: string; outcome: ApplyOutcome };
@@ -36,7 +36,7 @@ function verdictFor(done: string) {
   return (outcome: ApplyOutcome): Verdict => {
     const problem = applyProblem(outcome);
     if (problem !== undefined) {
-      return { tone: "warn", message: problem, description: "Veja os detalhes em Último resultado." };
+      return { tone: "warn", message: problem, description: "See the details under Last result." };
     }
     return { tone: "ok", message: done };
   };
@@ -53,28 +53,28 @@ export function ProjectsScreen() {
   const dirInput = useRef<HTMLInputElement>(null);
 
   async function syncAll() {
-    const outcome = await withFeedback(sync.mutateAsync(), verdictFor("Sincronizado."));
+    const outcome = await withFeedback(sync.mutateAsync(), verdictFor("Synced."));
     if (outcome !== undefined) {
-      setLast({ action: "Sincronização", outcome });
+      setLast({ action: "Sync", outcome });
     }
   }
 
   return (
     <>
       <PageHeader
-        title="Projetos"
-        description="Repositórios onde o agw está instalado para Claude, Codex e Grok."
+        title="Projects"
+        description="Repositories where agw is installed for Claude Code, Codex and Grok."
         actions={
           <Button type="button" variant="outline" disabled={sync.isPending} onClick={() => void syncAll()}>
             {sync.isPending && <Spinner />}
             {!sync.isPending && <RefreshCwIcon />}
-            Sincronizar tudo
+            Sync all
           </Button>
         }
       />
       <InstallCard
         dirInput={dirInput}
-        onApplied={(result) => setLast({ action: "Instalação", outcome: outcomeOfResult(result) })}
+        onApplied={(result) => setLast({ action: "Install", outcome: outcomeOfResult(result) })}
       />
       {last !== undefined && (
         <LastResult last={last} installed={projects.data?.length ?? 0} onDismiss={() => setLast(undefined)} />
@@ -84,7 +84,7 @@ export function ProjectsScreen() {
           <ProjectTable
             projects={views}
             onEmptyAction={() => dirInput.current?.focus()}
-            onUninstalled={(result) => setLast({ action: "Desinstalação", outcome: outcomeOfResult(result) })}
+            onUninstalled={(result) => setLast({ action: "Uninstall", outcome: outcomeOfResult(result) })}
           />
         )}
       </QueryState>
@@ -110,9 +110,9 @@ function InstallCard({ dirInput, onApplied }: InstallProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Instalar em um repositório</CardTitle>
+        <CardTitle>Install in a repository</CardTitle>
         <CardDescription>
-          Escreve a configuração MCP de Claude, Codex e Grok no repositório e linka as skills do perfil.
+          Writes the MCP configuration for Claude Code, Codex and Grok into the repository and links the profile's skills.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -126,7 +126,7 @@ function InstallCard({ dirInput, onApplied }: InstallProps) {
             }
             const result = await withFeedback(
               install.mutateAsync({ dir: trimmedDir, profile: chosenProfile, transport }),
-              (applied) => verdictFor("Instalado.")(outcomeOfResult(applied)),
+              (applied) => verdictFor("Installed.")(outcomeOfResult(applied)),
             );
             if (result !== undefined) {
               onApplied(result);
@@ -134,12 +134,12 @@ function InstallCard({ dirInput, onApplied }: InstallProps) {
           }}
         >
           <Field data-invalid={dirHint !== undefined || install.error !== null} className="md:col-span-2 xl:col-span-1">
-            <FieldLabel htmlFor="install-dir">Diretório do repositório</FieldLabel>
+            <FieldLabel htmlFor="install-dir">Repository folder</FieldLabel>
             <Input
               ref={dirInput}
               id="install-dir"
               className="font-mono"
-              placeholder="/caminho/absoluto/do/repo"
+              placeholder="/absolute/path/to/repo"
               value={dir}
               aria-invalid={dirHint !== undefined}
               onChange={(event) => setDir(event.target.value)}
@@ -147,10 +147,10 @@ function InstallCard({ dirInput, onApplied }: InstallProps) {
             <FieldError>{dirHint ?? install.error?.message}</FieldError>
           </Field>
           <Field>
-            <FieldLabel htmlFor="install-profile">Perfil</FieldLabel>
+            <FieldLabel htmlFor="install-profile">Profile</FieldLabel>
             <Select value={chosenProfile} onValueChange={setProfile} disabled={profiles.length === 0}>
               <SelectTrigger id="install-profile" className="w-full">
-                <SelectValue placeholder="Nenhum perfil" />
+                <SelectValue placeholder="No profiles" />
               </SelectTrigger>
               <SelectContent>
                 {profiles.map((name) => (
@@ -160,10 +160,10 @@ function InstallCard({ dirInput, onApplied }: InstallProps) {
                 ))}
               </SelectContent>
             </Select>
-            {config.error !== null && <FieldError>Perfis indisponíveis: {config.error.message}</FieldError>}
+            {config.error !== null && <FieldError>Profiles unavailable: {config.error.message}</FieldError>}
           </Field>
           <Field>
-            <FieldLabel id="install-transport-label">Transporte</FieldLabel>
+            <FieldLabel id="install-transport-label">Transport</FieldLabel>
             <ToggleGroup
               type="single"
               variant="outline"
@@ -186,12 +186,12 @@ function InstallCard({ dirInput, onApplied }: InstallProps) {
           </Field>
           <Field className="md:col-span-2 xl:col-span-1">
             <FieldLabel className="hidden xl:block xl:invisible" aria-hidden="true">
-              Instalar
+              Install
             </FieldLabel>
             <Button type="submit" disabled={blocked} className="w-full xl:w-auto">
               {install.isPending && <Spinner />}
               {!install.isPending && <DownloadIcon />}
-              Instalar
+              Install
             </Button>
           </Field>
         </form>
@@ -206,18 +206,18 @@ function LastResult({ last, installed, onDismiss }: { last: LastApply; installed
   return (
     <Card aria-live="polite">
       <CardHeader>
-        <CardTitle>Último resultado · {last.action}</CardTitle>
+        <CardTitle>Last result · {last.action}</CardTitle>
         <CardAction>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Fechar resultado" onClick={onDismiss}>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Close result" onClick={onDismiss}>
             <XIcon />
           </Button>
         </CardAction>
       </CardHeader>
       <CardContent>
-        {empty && installed === 0 && <p className="text-sm text-muted-foreground">Nenhum projeto instalado para sincronizar.</p>}
+        {empty && installed === 0 && <p className="text-sm text-muted-foreground">No installed projects to sync.</p>}
         {empty && installed > 0 && (
           <p className="text-sm text-muted-foreground">
-            A resposta veio vazia, mas {plural(installed, "projeto está instalado", "projetos estão instalados")}.
+            The response was empty, but {plural(installed, "project is installed", "projects are installed")}.
           </p>
         )}
         <ApplyOutcomeView outcome={outcome} />
@@ -238,7 +238,7 @@ function ProjectTable({ projects, onEmptyAction, onUninstalled }: TableProps) {
     <Card className="gap-0 pb-0">
       <CardHeader className="border-b">
         <CardTitle className="flex items-center gap-2">
-          Instalados
+          Installed
           <Badge variant="secondary" className="tabular-nums">
             {projects.length}
           </Badge>
@@ -250,12 +250,12 @@ function ProjectTable({ projects, onEmptyAction, onUninstalled }: TableProps) {
             <EmptyMedia variant="icon">
               <FolderGit2Icon />
             </EmptyMedia>
-            <EmptyTitle>Nenhum projeto instalado</EmptyTitle>
-            <EmptyDescription>Informe o diretório de um repositório acima para instalar o agw nele.</EmptyDescription>
+            <EmptyTitle>No projects installed</EmptyTitle>
+            <EmptyDescription>Enter a repository folder above to install agw in it.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
             <Button type="button" variant="outline" onClick={onEmptyAction}>
-              Instalar o primeiro projeto
+              Install your first project
             </Button>
           </EmptyContent>
         </Empty>
@@ -264,12 +264,12 @@ function ProjectTable({ projects, onEmptyAction, onUninstalled }: TableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="pl-4">Diretório</TableHead>
-              <TableHead>Perfil</TableHead>
-              <TableHead>Transporte</TableHead>
+              <TableHead className="pl-4">Folder</TableHead>
+              <TableHead>Profile</TableHead>
+              <TableHead>Transport</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="pr-4 text-right">
-                <span className="sr-only">Ações</span>
+                <span className="sr-only">Actions</span>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -309,7 +309,7 @@ function ProjectRow({ project, onUninstalled }: RowProps) {
       </TableCell>
       <TableCell>
         {project.exists && <Badge variant="success">ok</Badge>}
-        {!project.exists && <Badge variant="warning">pasta não encontrada</Badge>}
+        {!project.exists && <Badge variant="warning">folder not found</Badge>}
       </TableCell>
       <TableCell className="w-px pr-4 text-right">
         <ConfirmAction
@@ -318,20 +318,20 @@ function ProjectRow({ project, onUninstalled }: RowProps) {
             <>
               {uninstall.isPending && <Spinner />}
               {!uninstall.isPending && <Trash2Icon />}
-              Desinstalar
+              Uninstall
             </>
           }
-          title={`Desinstalar de ${name}?`}
+          title={`Uninstall from ${name}?`}
           description={
             <>
-              Remove a configuração do agw e os links de skills de <span className="font-mono">{project.dir}</span>.
+              Removes the agw configuration and the skill links from <span className="font-mono">{project.dir}</span>.
             </>
           }
-          confirmLabel="Desinstalar"
+          confirmLabel="Uninstall"
           disabled={uninstall.isPending}
           onConfirm={async () => {
             const result = await withFeedback(uninstall.mutateAsync(project.dir), (applied) =>
-              verdictFor(`${name} desinstalado.`)(outcomeOfResult(applied)),
+              verdictFor(`${name} uninstalled.`)(outcomeOfResult(applied)),
             );
             if (result !== undefined) {
               onUninstalled(result);

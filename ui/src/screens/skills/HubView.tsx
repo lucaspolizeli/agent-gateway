@@ -10,7 +10,7 @@ import { hrefFor } from "../../router.ts";
 import type { SkillsDialog } from "../SkillsScreen.tsx";
 import { SkillEditor } from "./SkillEditor.tsx";
 
-const scopeLabels: Record<SkillSet["scope"], string> = { user: "usuário", project: "projetos" };
+const scopeLabels: Record<SkillSet["scope"], string> = { user: "user", project: "projects" };
 
 type Props = {
   sets: SkillSet[];
@@ -23,17 +23,17 @@ export function HubView({ sets, selectedSet, selectedSkill, onDialog }: Props) {
   return (
     <SplitView
       list={
-        <ListPane label="Skills do hub">
+        <ListPane label="Hub skills">
           {sets.length === 0 && (
             <DetailPlaceholder
               className="min-h-0 border-0 p-4"
               icon={<FolderPlusIcon />}
-              title="Nenhum conjunto"
-              description="Crie um conjunto para guardar skills."
+              title="No skill sets yet"
+              description="Create a skill set to hold skills."
               action={
                 <Button type="button" size="sm" onClick={() => onDialog({ kind: "set" })}>
                   <FolderPlusIcon />
-                  Novo conjunto
+                  New skill set
                 </Button>
               }
             />
@@ -54,12 +54,12 @@ export function HubView({ sets, selectedSet, selectedSkill, onDialog }: Props) {
 type SetGroupProps = Omit<Props, "sets"> & { skillSet: SkillSet };
 
 function SetGroup({ skillSet, selectedSet, selectedSkill, onDialog }: SetGroupProps) {
-  let usedBy = "Nenhum perfil usa";
+  let usedBy = "No profile uses it";
   if (skillSet.usedBy.length > 0) {
-    usedBy = `Usado por ${skillSet.usedBy.join(", ")}`;
+    usedBy = `Used by ${skillSet.usedBy.join(", ")}`;
   }
   return (
-    <section aria-label={`Conjunto ${skillSet.name}`} className="flex flex-col gap-1">
+    <section aria-label={`Skill set ${skillSet.name}`} className="flex flex-col gap-1">
       <header className="flex flex-col gap-0.5 px-2.5 pt-1.5">
         <span className="flex items-center gap-2">
           <a
@@ -76,11 +76,11 @@ function SetGroup({ skillSet, selectedSet, selectedSkill, onDialog }: SetGroupPr
       </header>
       {skillSet.skills.length === 0 && (
         <Empty className="flex-row flex-wrap justify-between gap-2 rounded-md border border-dashed px-2.5 py-1.5">
-          <EmptyDescription className="text-xs">Sem skills</EmptyDescription>
+          <EmptyDescription className="text-xs">No skills yet</EmptyDescription>
           <EmptyContent className="ml-auto w-auto flex-row gap-1">
             <Button type="button" size="xs" variant="ghost" onClick={() => onDialog({ kind: "skill", set: skillSet.name })}>
               <PlusIcon />
-              Nova skill
+              New skill
             </Button>
             <Button
               type="button"
@@ -89,7 +89,7 @@ function SetGroup({ skillSet, selectedSet, selectedSkill, onDialog }: SetGroupPr
               onClick={() => onDialog({ kind: "import", toSet: skillSet.name })}
             >
               <DownloadIcon />
-              Importar
+              Import
             </Button>
           </EmptyContent>
         </Empty>
@@ -117,12 +117,12 @@ function EditorPane({ set, skill, sets, onDialog }: PaneProps) {
     return (
       <DetailPlaceholder
         icon={<BookOpenIcon />}
-        title="Selecione uma skill"
-        description="Escolha uma skill na lista para editar o SKILL.md, mover para outro conjunto ou excluir."
+        title="Select a skill"
+        description="Choose a skill from the list to edit its SKILL.md, move it to another skill set or delete it."
         action={
           <Button type="button" variant="outline" onClick={() => onDialog({ kind: "skill", set })}>
             <PlusIcon />
-            Nova skill
+            New skill
           </Button>
         }
       />

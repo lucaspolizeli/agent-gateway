@@ -16,9 +16,9 @@ import { UserSkillsView } from "./skills/UserSkillsView.tsx";
 export const skillsViewLabels: Record<SkillsView, string> = { hub: "Hub", all: "All", doctor: "Doctor" };
 
 const descriptions: Record<SkillsView, string> = {
-  hub: "Conjuntos de SKILL.md: o global vai para o usuário, os outros entram nos projetos pelos perfis.",
-  all: "Toda skill que os CLIs enxergam no nível do usuário, e de onde cada uma vem.",
-  doctor: "Pergunta a Claude, Codex e Grok quais skills eles realmente descobrem.",
+  hub: "Skill sets of SKILL.md files. The global set goes to your user level; the others reach projects through profiles.",
+  all: "Every skill the CLIs see at user level, and where each one comes from.",
+  doctor: "Asks Claude Code, Codex and Grok which skills they actually discover.",
 };
 
 export type SkillsDialog = { kind: "skill"; set?: string } | { kind: "set" } | { kind: "import"; toSet?: string };
@@ -63,20 +63,20 @@ export function SkillsScreen({ route }: { route: SkillsRoute }) {
           <>
             <Button type="button" variant="outline" onClick={() => setDialog({ kind: "import" })}>
               <DownloadIcon />
-              Importar
+              Import
               {importCount > 0 && (
-                <Badge variant="secondary" className="h-4 px-1.5 tabular-nums" aria-label={`${importCount} para importar`}>
+                <Badge variant="secondary" className="h-4 px-1.5 tabular-nums" aria-label={`${importCount} to import`}>
                   {importCount}
                 </Badge>
               )}
             </Button>
             <Button type="button" variant="outline" onClick={() => setDialog({ kind: "set" })}>
               <FolderPlusIcon />
-              Novo conjunto
+              New skill set
             </Button>
             <Button type="button" onClick={() => setDialog({ kind: "skill", set: selectedSet })}>
               <PlusIcon />
-              Nova skill
+              New skill
             </Button>
           </>
         }

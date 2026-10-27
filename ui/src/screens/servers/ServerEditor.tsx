@@ -44,11 +44,11 @@ type Props = {
 };
 
 const kindLabels: Record<ServerKind, { name: string; hint: string }> = {
-  stdio: { name: "stdio", hint: "processo local" },
-  http: { name: "http", hint: "remoto" },
+  stdio: { name: "stdio", hint: "local process" },
+  http: { name: "http", hint: "remote" },
 };
 const kinds: ServerKind[] = ["stdio", "http"];
-const variablesTitles: Record<ServerKind, string> = { stdio: "Ambiente", http: "Headers" };
+const variablesTitles: Record<ServerKind, string> = { stdio: "Environment", http: "Headers" };
 
 function sourceOf(target: EditorTarget): ServerSpec {
   if (target.kind === "existing") {
@@ -95,7 +95,7 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
     nameProblem = serverNameProblem(newName);
   }
   if (target.kind === "new" && nameProblem === undefined && existingNames.includes(newName)) {
-    nameProblem = `Já existe um servidor chamado ${newName}.`;
+    nameProblem = `A server named ${newName} already exists. Choose another name.`;
   }
   if (nameProblem !== undefined) {
     problems.unshift(nameProblem);
@@ -112,10 +112,10 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
 
   async function submit() {
     if (target.kind === "existing") {
-      await withFeedback(save.mutateAsync({ op: "upsertServer", name: target.name, spec }), "Servidor salvo.");
+      await withFeedback(save.mutateAsync({ op: "upsertServer", name: target.name, spec }), "Server saved.");
       return;
     }
-    const saved = await withFeedback(save.mutateAsync({ op: "upsertServer", name: newName, spec }), "Servidor criado.");
+    const saved = await withFeedback(save.mutateAsync({ op: "upsertServer", name: newName, spec }), "Server created.");
     if (saved !== undefined) {
       onCreated(newName);
     }
@@ -143,26 +143,26 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
         {target.kind === "existing" && <ExistingHeader name={target.name} kind={form.kind} usedBy={usedBy} />}
         {target.kind === "new" && (
           <CardHeader>
-            <CardTitle className="text-lg">Novo servidor</CardTitle>
-            <CardDescription>Preencha a conexão, teste e salve.</CardDescription>
+            <CardTitle className="text-lg">New server</CardTitle>
+            <CardDescription>Fill in the connection, test it, then save.</CardDescription>
           </CardHeader>
         )}
         <CardContent className="flex flex-col gap-6">
           {stale && (
-            <StaleNotice message="Este servidor foi salvo em outro lugar enquanto você editava. Recarregar troca suas edições pela versão salva." onReload={reload} />
+            <StaleNotice message="This server was saved somewhere else while you were editing. Reload replaces your edits with the saved version." onReload={reload} />
           )}
           <FieldSet>
-            <FieldLegend>Conexão</FieldLegend>
+            <FieldLegend>Connection</FieldLegend>
             <FieldGroup>
               {target.kind === "new" && (
                 <Field data-invalid={nameHint !== undefined}>
-                  <FieldLabel htmlFor="server-name">Nome</FieldLabel>
+                  <FieldLabel htmlFor="server-name">Name</FieldLabel>
                   <Input
                     id="server-name"
                     className="font-mono"
                     value={name}
                     autoFocus
-                    placeholder="meu-servidor"
+                    placeholder="my-server"
                     aria-invalid={nameHint !== undefined}
                     onChange={(event) => setName(event.target.value)}
                   />
@@ -170,7 +170,7 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
                 </Field>
               )}
               <Field>
-                <FieldLabel id="server-kind-label">Transporte</FieldLabel>
+                <FieldLabel id="server-kind-label">Transport</FieldLabel>
                 <ToggleGroup
                   type="single"
                   variant="outline"
@@ -198,25 +198,25 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
           <FieldSet>
             <FieldLegend>{variablesTitles[form.kind]}</FieldLegend>
             <FieldDescription>
-              Use <code className="font-mono">{"${NOME}"}</code> para ler um valor dos segredos do perfil.
+              Use <code className="font-mono">{"${NAME}"}</code> to read a value from the profile's secrets.
             </FieldDescription>
             <VariablesFields form={form} onChange={setForm} />
           </FieldSet>
 
           {form.kind === "stdio" && (
             <FieldSet>
-              <FieldLegend>Avançado</FieldLegend>
+              <FieldLegend>Advanced</FieldLegend>
               <AdvancedFields form={form} onChange={setForm} />
             </FieldSet>
           )}
 
           {(test.isPending || test.error !== null || test.data !== undefined) && (
             <FieldSet aria-live="polite">
-              <FieldLegend>Teste de conexão</FieldLegend>
+              <FieldLegend>Connection test</FieldLegend>
               {test.isPending && (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Spinner />
-                  Conectando…
+                  Connecting…
                 </p>
               )}
               {test.error !== null && <FieldError>{test.error.message}</FieldError>}
@@ -238,7 +238,7 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
           <Button type="submit" disabled={!saveable}>
             {save.isPending && <Spinner />}
             {!save.isPending && <SaveIcon />}
-            Salvar
+            Save
           </Button>
         </ActionBar>
       </Card>
@@ -251,7 +251,7 @@ function BarStatus({ problems, dirty, isNew }: { problems: string[]; dirty: bool
     return <span className="text-destructive">{problems[0]}</span>;
   }
   if (isNew) {
-    return <span className="text-muted-foreground">Novo servidor, ainda não salvo</span>;
+    return <span className="text-muted-foreground">New server, not saved yet</span>;
   }
   return <DirtyIndicator dirty={dirty} />;
 }
@@ -270,8 +270,8 @@ function ExistingHeader({ name, kind, usedBy }: HeaderProps) {
         <Badge variant="outline">{kind}</Badge>
       </CardTitle>
       <CardDescription>
-        {usedBy.length === 0 && "Nenhum perfil usa este servidor."}
-        {usedBy.length > 0 && "Usado por "}
+        {usedBy.length === 0 && "No profile uses this server."}
+        {usedBy.length > 0 && "Used by "}
         {usedBy.map((profile, index) => (
           <span key={profile}>
             {index > 0 && ", "}
@@ -288,7 +288,7 @@ function ExistingHeader({ name, kind, usedBy }: HeaderProps) {
           disabled={rename.isPending}
           onRename={async (to) => {
             if (await confirmLeave()) {
-              await withFeedback(rename.mutateAsync({ op: "renameServer", from: name, to }), `Renomeado para ${to}.`);
+              await withFeedback(rename.mutateAsync({ op: "renameServer", from: name, to }), `Renamed to ${to}.`);
             }
           }}
         />
@@ -296,16 +296,16 @@ function ExistingHeader({ name, kind, usedBy }: HeaderProps) {
           label={
             <>
               <Trash2Icon />
-              Remover
+              Remove
             </>
           }
-          title={`Remover ${name}?`}
-          description="O servidor sai de todos os perfis que o usam, junto com as tools ocultas dele."
-          confirmLabel="Remover"
+          title={`Remove ${name}?`}
+          description="The server is removed from every profile that uses it, along with its hidden tools."
+          confirmLabel="Remove"
           disabled={remove.isPending}
           onConfirm={async () => {
             if (await confirmLeave()) {
-              await withFeedback(remove.mutateAsync({ op: "removeServer", name }), `${name} removido.`);
+              await withFeedback(remove.mutateAsync({ op: "removeServer", name }), `${name} removed.`);
             }
           }}
         />

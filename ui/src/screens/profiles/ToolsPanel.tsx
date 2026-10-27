@@ -22,9 +22,9 @@ export function ToolsPanel({ profile }: { profile: string }) {
   const [filter, setFilter] = useState("");
 
   function setHidden(tool: string, hidden: boolean) {
-    let done = `${tool} visível para os clientes.`;
+    let done = `${tool} is visible to clients.`;
     if (hidden) {
-      done = `${tool} oculta dos clientes.`;
+      done = `${tool} is hidden from clients.`;
     }
     void withFeedback(toggle.mutateAsync({ op: "setToolHidden", profile, tool, hidden }), done);
   }
@@ -39,18 +39,18 @@ export function ToolsPanel({ profile }: { profile: string }) {
                 <EmptyMedia variant="icon">
                   <WrenchIcon />
                 </EmptyMedia>
-                <EmptyTitle>Gateway parado</EmptyTitle>
-                <EmptyDescription>Inicie o gateway deste perfil para listar as tools que ele expõe.</EmptyDescription>
+                <EmptyTitle>Gateway stopped</EmptyTitle>
+                <EmptyDescription>Start this profile's gateway to list the tools it exposes.</EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
                 <Button
                   type="button"
                   disabled={start.isPending}
-                  onClick={() => void withFeedback(start.mutateAsync(profile), "Gateway iniciado.")}
+                  onClick={() => void withFeedback(start.mutateAsync(profile), "Gateway started.")}
                 >
                   {start.isPending && <Spinner />}
                   {!start.isPending && <PlayIcon />}
-                  Iniciar gateway
+                  Start gateway
                 </Button>
               </EmptyContent>
             </Empty>
@@ -65,8 +65,8 @@ export function ToolsPanel({ profile }: { profile: string }) {
             <UpstreamIssues profile={profile} upstreams={data.upstreams} />
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground tabular-nums">{visible}</span> de {data.tools.length} tools
-                visíveis para os clientes
+                <span className="font-semibold text-foreground tabular-nums">{visible}</span> of {data.tools.length} tools
+                visible to clients
               </span>
               <span className="flex-1" />
               <div className="relative w-full sm:w-64">
@@ -74,8 +74,8 @@ export function ToolsPanel({ profile }: { profile: string }) {
                 <Input
                   type="search"
                   className="pl-8"
-                  aria-label="Filtrar tools"
-                  placeholder="Filtrar tools"
+                  aria-label="Filter tools"
+                  placeholder="Filter tools"
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
                 />
@@ -84,19 +84,19 @@ export function ToolsPanel({ profile }: { profile: string }) {
             {data.tools.length === 0 && (
               <Empty className="border p-4">
                 <EmptyHeader>
-                  <EmptyTitle>Nenhuma tool exposta</EmptyTitle>
-                  <EmptyDescription>Os servidores deste perfil não expõem tools agora.</EmptyDescription>
+                  <EmptyTitle>No tools exposed</EmptyTitle>
+                  <EmptyDescription>The servers in this profile expose no tools right now.</EmptyDescription>
                 </EmptyHeader>
               </Empty>
             )}
             {noMatches && (
               <Empty className="border p-4">
                 <EmptyHeader>
-                  <EmptyTitle>Nenhuma tool corresponde a "{query}"</EmptyTitle>
+                  <EmptyTitle>No tools match "{query}"</EmptyTitle>
                 </EmptyHeader>
                 <EmptyContent>
                   <Button type="button" variant="outline" size="sm" onClick={() => setFilter("")}>
-                    Limpar filtro
+                    Clear filter
                   </Button>
                 </EmptyContent>
               </Empty>
@@ -139,7 +139,7 @@ function ToolGroup({ server, tools, needle, profile, busy, onToggle }: GroupProp
       <header className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
         <span className="font-mono text-sm font-medium">{server}</span>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {visible} de {tools.length} visíveis
+          {visible} of {tools.length} visible
         </span>
       </header>
       <ul className="divide-y">
@@ -153,7 +153,7 @@ function ToolGroup({ server, tools, needle, profile, busy, onToggle }: GroupProp
 
 type RowProps = { tool: ToolInfo; profile: string; busy: boolean; onToggle: (tool: string, hidden: boolean) => void };
 
-const visibilityText = { visible: "visível", hidden: "oculta" };
+const visibilityText = { visible: "visible", hidden: "hidden" };
 
 function ToolRow({ tool, profile, busy, onToggle }: RowProps) {
   const visibility = toolVisibility(tool, profile);
@@ -168,7 +168,7 @@ function ToolRow({ tool, profile, busy, onToggle }: RowProps) {
       <Switch
         id={id}
         checked={shown}
-        aria-label={`${tool.name} visível para os clientes`}
+        aria-label={`${tool.name} visible to clients`}
         disabled={visibility.kind === "hiddenByAncestor"}
         aria-disabled={busy}
         onCheckedChange={(checked) => {
@@ -182,7 +182,7 @@ function ToolRow({ tool, profile, busy, onToggle }: RowProps) {
         {text}
       </span>
       <span className={cn("font-mono text-sm", !shown && "text-muted-foreground line-through")}>{tool.name}</span>
-      {visibility.kind === "hiddenByAncestor" && <Badge variant="secondary">oculta por {visibility.profile}</Badge>}
+      {visibility.kind === "hiddenByAncestor" && <Badge variant="secondary">hidden by {visibility.profile}</Badge>}
       <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={tool.description}>
         {tool.description}
       </span>

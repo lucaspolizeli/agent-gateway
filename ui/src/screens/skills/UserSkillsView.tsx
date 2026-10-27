@@ -65,7 +65,7 @@ export function UserSkillsView({ sets }: { sets: SkillSet[] }) {
                 type="single"
                 variant="outline"
                 size="sm"
-                aria-label="Filtrar por origem"
+                aria-label="Filter by origin"
                 value={filter}
                 onValueChange={(value) => {
                   if (isFilter(value)) {
@@ -74,7 +74,7 @@ export function UserSkillsView({ sets }: { sets: SkillSet[] }) {
                 }}
               >
                 <ToggleGroupItem value={ALL} className="px-3">
-                  Todas <span className="text-muted-foreground tabular-nums">{counts.get(ALL)}</span>
+                  All <span className="text-muted-foreground tabular-nums">{counts.get(ALL)}</span>
                 </ToggleGroupItem>
                 {originKinds.map((kind) => (
                   <ToggleGroupItem key={kind} value={kind} className="px-3">
@@ -88,8 +88,8 @@ export function UserSkillsView({ sets }: { sets: SkillSet[] }) {
                 <Input
                   type="search"
                   className="pl-8"
-                  aria-label="Buscar skills"
-                  placeholder="Buscar skills"
+                  aria-label="Search skills"
+                  placeholder="Search skills"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                 />
@@ -101,9 +101,9 @@ export function UserSkillsView({ sets }: { sets: SkillSet[] }) {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="pl-4">Skill</TableHead>
-                    <TableHead>Origem</TableHead>
+                    <TableHead>Origin</TableHead>
                     <TableHead className="pr-4 text-right">
-                      <span className="sr-only">Ações</span>
+                      <span className="sr-only">Actions</span>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -113,8 +113,8 @@ export function UserSkillsView({ sets }: { sets: SkillSet[] }) {
                       <TableCell colSpan={3}>
                         <Empty className="p-6">
                           <EmptyHeader>
-                            <EmptyTitle>Nenhuma skill aqui</EmptyTitle>
-                            <EmptyDescription>Nenhuma skill do usuário corresponde ao filtro.</EmptyDescription>
+                            <EmptyTitle>No skills here</EmptyTitle>
+                            <EmptyDescription>No user-level skill matches the filter.</EmptyDescription>
                           </EmptyHeader>
                           <EmptyContent>
                             <Button
@@ -126,7 +126,7 @@ export function UserSkillsView({ sets }: { sets: SkillSet[] }) {
                                 setSearch("");
                               }}
                             >
-                              Limpar filtros
+                              Clear filters
                             </Button>
                           </EmptyContent>
                         </Empty>
@@ -205,12 +205,12 @@ function RowAction({ skill, sets }: { skill: UserSkill; sets: SkillSet[] }) {
         <Button variant="ghost" size="sm" asChild>
           <a href={hrefFor({ screen: "skills", view: "hub", set: skill.origin.set, skill: skill.name })}>
             <ExternalLinkIcon />
-            Abrir
+            Open
           </a>
         </Button>
       );
     case "managed":
-      return <span className="text-xs whitespace-nowrap text-muted-foreground">atualizada pelo CLI skills</span>;
+      return <span className="text-xs whitespace-nowrap text-muted-foreground">updated by the skills CLI</span>;
     case "unmanaged":
       return <ImportButton name={skill.name} path={skill.origin.path} sets={sets} />;
   }
@@ -225,7 +225,7 @@ function ImportButton({ name, path, sets }: { name: string; path: string; sets: 
       <PopoverTrigger asChild>
         <Button type="button" size="sm" variant="outline">
           <DownloadIcon />
-          Importar
+          Import
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">
@@ -242,10 +242,10 @@ function ImportButton({ name, path, sets }: { name: string; path: string; sets: 
           }}
         >
           <Field>
-            <FieldLabel htmlFor={`import-${name}`}>Importar {name} para</FieldLabel>
+            <FieldLabel htmlFor={`import-${name}`}>Import {name} into</FieldLabel>
             <Select value={target} onValueChange={setTarget}>
               <SelectTrigger id={`import-${name}`} className="w-full">
-                <SelectValue placeholder="Conjunto" />
+                <SelectValue placeholder="Skill set" />
               </SelectTrigger>
               <SelectContent>
                 {sets.map((set) => (
@@ -258,11 +258,11 @@ function ImportButton({ name, path, sets }: { name: string; path: string; sets: 
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              Cancelar
+              Cancel
             </Button>
             <Button type="submit" disabled={target === "" || run.isPending}>
               {run.isPending && <Spinner />}
-              Importar
+              Import
             </Button>
           </div>
         </form>

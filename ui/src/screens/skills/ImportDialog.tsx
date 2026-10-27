@@ -35,8 +35,8 @@ export function defaultImportTarget(sets: SkillSet[], preferred?: string): strin
 export function importedVerdict(name: string, toSet: string): Verdict {
   return {
     tone: "ok",
-    message: `${name} importada em ${toSet}.`,
-    action: { label: "Abrir", onClick: () => void navigate({ screen: "skills", view: "hub", set: toSet, skill: name }) },
+    message: `${name} imported into ${toSet}.`,
+    action: { label: "Open", onClick: () => void navigate({ screen: "skills", view: "hub", set: toSet, skill: name }) },
   };
 }
 
@@ -55,10 +55,10 @@ export function ImportDialog({ open, sets, toSet, onClose }: Props) {
     >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Importar skills</DialogTitle>
+          <DialogTitle>Import skills</DialogTitle>
           <DialogDescription>
-            Pastas reais nos diretórios de skills do usuário que o hub ainda não gerencia. Importar move a pasta para o
-            conjunto escolhido e refaz os links.
+            Real folders in your user-level skill folders that the hub does not manage yet. Import moves the folder into the
+            chosen skill set and links it again.
           </DialogDescription>
         </DialogHeader>
         <QueryState query={importable}>
@@ -70,8 +70,8 @@ export function ImportDialog({ open, sets, toSet, onClose }: Props) {
                     <EmptyMedia variant="icon">
                       <PackageOpenIcon />
                     </EmptyMedia>
-                    <EmptyTitle>Nada para importar</EmptyTitle>
-                    <EmptyDescription>Toda skill do usuário já está no hub ou é gerenciada pelo CLI skills.</EmptyDescription>
+                    <EmptyTitle>Nothing to import</EmptyTitle>
+                    <EmptyDescription>Every user-level skill is already in the hub or managed by the skills CLI.</EmptyDescription>
                   </EmptyHeader>
                 </Empty>
               );
@@ -108,8 +108,8 @@ function ImportRow({ skill, sets, preferred }: RowProps) {
       </ItemContent>
       <ItemActions>
         <Select value={target} onValueChange={setTarget}>
-          <SelectTrigger size="sm" className="w-36" aria-label={`Conjunto de destino de ${skill.name}`}>
-            <SelectValue placeholder="Conjunto" />
+          <SelectTrigger size="sm" className="w-36" aria-label={`Target skill set for ${skill.name}`}>
+            <SelectValue placeholder="Skill set" />
           </SelectTrigger>
           <SelectContent>
             {sets.map((set) => (
@@ -131,7 +131,7 @@ function ImportRow({ skill, sets, preferred }: RowProps) {
         >
           {run.isPending && <Spinner />}
           {!run.isPending && <DownloadIcon />}
-          Importar
+          Import
         </Button>
       </ItemActions>
     </Item>
