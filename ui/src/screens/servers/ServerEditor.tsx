@@ -3,6 +3,7 @@ import type { ConfigEdit, ServerSpec } from "../../contract.ts";
 import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
 import { Badge } from "../../components/Badge.tsx";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
+import { FieldHint } from "../../components/FieldHint.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { RenameControl } from "../../components/RenameControl.tsx";
 import {
@@ -13,6 +14,7 @@ import {
   type ServerForm,
   type ServerKind,
 } from "../../domain/serverForm.ts";
+import { hintFor, serverNameProblem } from "../../domain/validation.ts";
 import { hrefFor, navigate } from "../../router.ts";
 import { useConfigEdit, useServerTest } from "../../state/config.ts";
 import { AdvancedFields, ConnectionFields, VariablesFields } from "./ServerFields.tsx";
@@ -51,12 +53,17 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
   const specProblems = formProblems(form);
   const problems = [...specProblems];
   const newName = name.trim();
-  if (target.kind === "new" && newName === "") {
-    problems.unshift("Informe o nome.");
+  let nameProblem: string | undefined = undefined;
+  if (target.kind === "new") {
+    nameProblem = serverNameProblem(newName);
   }
-  if (target.kind === "new" && existingNames.includes(newName)) {
-    problems.unshift(`Já existe um servidor chamado ${newName}.`);
+  if (target.kind === "new" && nameProblem === undefined && existingNames.includes(newName)) {
+    nameProblem = `Já existe um servidor chamado ${newName}.`;
   }
+  if (nameProblem !== undefined) {
+    problems.unshift(nameProblem);
+  }
+  const nameHint = hintFor(newName, nameProblem);
   let dirty = true;
   if (target.kind === "existing") {
     dirty = JSON.stringify(spec) !== JSON.stringify(target.spec);
@@ -106,8 +113,11 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
               value={name}
               autoFocus
               placeholder="meu-servidor"
+              aria-invalid={nameHint !== undefined}
+              aria-describedby={nameHint && "server-name-hint"}
               onChange={(event) => setName(event.target.value)}
             />
+            <FieldHint id="server-name-hint" message={nameHint} />
           </label>
         )}
         <div className="segmented" role="radiogroup" aria-label="Transporte">
@@ -207,6 +217,7 @@ function ExistingHeader({ name, kind, usedBy }: HeaderProps) {
       <MutationStatus mutation={remove} success="Removido." />
       <RenameControl
         current={name}
+        validate={serverNameProblem}
         disabled={rename.isPending}
         onRename={(to) => rename.mutate({ op: "renameServer", from: name, to })}
       />

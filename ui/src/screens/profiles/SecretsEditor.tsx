@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Badge } from "../../components/Badge.tsx";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
+import { FieldHint } from "../../components/FieldHint.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { QueryState } from "../../components/QueryState.tsx";
+import { hintFor, secretKeyProblem } from "../../domain/validation.ts";
 import { useDeleteSecret, useSecrets, useSetSecret } from "../../state/secrets.ts";
 
 /** Write-only: values are typed into password inputs and never read back from the API. */
@@ -122,6 +124,8 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
   const [value, setValue] = useState("");
   const set = useSetSecret();
   const key = secretKey.trim();
+  const keyProblem = secretKeyProblem(key);
+  const keyHint = hintFor(key, keyProblem);
   return (
     <form
       className="new-secret"
@@ -145,6 +149,8 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
           aria-label="Chave do novo segredo"
           placeholder="CHAVE"
           value={secretKey}
+          aria-invalid={keyHint !== undefined}
+          aria-describedby={keyHint && "secret-key-hint"}
           onChange={(event) => setSecretKey(event.target.value)}
         />
         <input
@@ -156,10 +162,11 @@ function NewSecret({ profile, existing }: { profile: string; existing: string[] 
           value={value}
           onChange={(event) => setValue(event.target.value)}
         />
-        <button type="submit" disabled={key === "" || value === "" || set.isPending}>
+        <button type="submit" disabled={keyProblem !== undefined || value === "" || set.isPending}>
           Adicionar
         </button>
       </div>
+      <FieldHint id="secret-key-hint" message={keyHint} />
       {existing.includes(key) && <span className="muted small">Substitui o valor atual de {key}.</span>}
       <MutationStatus mutation={set} success="Segredo salvo." />
     </form>

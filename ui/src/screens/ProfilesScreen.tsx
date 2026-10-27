@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { GatewayConfig, ProfileStatus, ResolvedProfileView } from "../contract.ts";
 import { Badge } from "../components/Badge.tsx";
+import { FieldHint } from "../components/FieldHint.tsx";
 import { Chain } from "../components/Chain.tsx";
 import { ConfirmButton } from "../components/ConfirmButton.tsx";
 import { CountBadge } from "../components/CountBadge.tsx";
@@ -14,6 +15,7 @@ import { Tabs, type TabItem } from "../components/Tabs.tsx";
 import { plural } from "../domain/format.ts";
 import { profileState } from "../domain/health.ts";
 import { emptyProfile } from "../domain/profiles.ts";
+import { hintFor, profileNameProblem } from "../domain/validation.ts";
 import { hrefFor, navigate, type ProfileTab } from "../router.ts";
 import { useConfig, useConfigEdit } from "../state/config.ts";
 import { useGatewayHealth } from "../state/health.ts";
@@ -70,7 +72,11 @@ function NewProfileForm({ existing, onDone }: { existing: string[]; onDone: () =
   const [name, setName] = useState("");
   const create = useConfigEdit();
   const trimmed = name.trim();
-  const taken = existing.includes(trimmed);
+  let problem = profileNameProblem(trimmed);
+  if (problem === undefined && existing.includes(trimmed)) {
+    problem = "Já existe um perfil com esse nome.";
+  }
+  const hint = hintFor(trimmed, problem);
   return (
     <form
       onSubmit={(event) => {
@@ -88,15 +94,22 @@ function NewProfileForm({ existing, onDone }: { existing: string[]; onDone: () =
     >
       <label className="field">
         <span className="field-label">Nome</span>
-        <input autoFocus placeholder="nova-empresa" value={name} onChange={(event) => setName(event.target.value)} />
+        <input
+          autoFocus
+          placeholder="nova-empresa"
+          value={name}
+          aria-invalid={hint !== undefined}
+          aria-describedby={hint && "profile-name-hint"}
+          onChange={(event) => setName(event.target.value)}
+        />
       </label>
-      {taken && <span className="status-line error">Já existe um perfil com esse nome.</span>}
+      <FieldHint id="profile-name-hint" message={hint} />
       <MutationStatus mutation={create} success="Criado." />
       <div className="popover-actions">
         <button type="button" onClick={onDone}>
           Cancelar
         </button>
-        <button type="submit" className="primary" disabled={trimmed === "" || taken || create.isPending}>
+        <button type="submit" className="primary" disabled={problem !== undefined || create.isPending}>
           Criar perfil
         </button>
       </div>
