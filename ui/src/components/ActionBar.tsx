@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
 
 type Props = {
-  /** Status text and problems. Takes the room it needs and wraps, so nothing is cut off. */
   messages: ReactNode;
-  /** Buttons. They wrap under the messages when the bar is narrow. */
   children: ReactNode;
   className?: string;
 };
