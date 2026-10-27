@@ -1,115 +1,130 @@
-import type { SkillSet } from "../contract.ts";
-import { Badge } from "../components/Badge.tsx";
-import { CountBadge } from "../components/CountBadge.tsx";
-import { PlusIcon } from "../components/Icons.tsx";
+import { DownloadIcon, FolderPlusIcon, PlusIcon } from "lucide-react";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "../components/PageHeader.tsx";
-import { Popover } from "../components/Popover.tsx";
 import { QueryState } from "../components/QueryState.tsx";
-import { hrefFor } from "../router.ts";
+import { navigate, skillsViews, type Route, type SkillsView } from "../router.ts";
 import { useImportableSkills, useSkillSets } from "../state/skills.ts";
-import { NewSetForm, NewSkillForm } from "./skills/CreateForms.tsx";
-import { ImportPanel } from "./skills/ImportPanel.tsx";
-import { SkillEditor } from "./skills/SkillEditor.tsx";
+import { NewSetDialog, NewSkillDialog } from "./skills/CreateForms.tsx";
+import { DoctorView } from "./skills/DoctorView.tsx";
+import { HubView } from "./skills/HubView.tsx";
+import { ImportDialog } from "./skills/ImportDialog.tsx";
+import { UserSkillsView } from "./skills/UserSkillsView.tsx";
 
-const scopeLabels: Record<SkillSet["scope"], string> = { user: "usuário", project: "projetos" };
+export const skillsViewLabels: Record<SkillsView, string> = { hub: "Hub", todas: "Todas", diagnostico: "Diagnóstico" };
 
-type Props = { set?: string; skill?: string };
+const descriptions: Record<SkillsView, string> = {
+  hub: "Conjuntos de SKILL.md: o global vai para o usuário, os outros entram nos projetos pelos perfis.",
+  todas: "Toda skill que os CLIs enxergam no nível do usuário, e de onde cada uma vem.",
+  diagnostico: "Pergunta a Claude, Codex e Grok quais skills eles realmente descobrem.",
+};
 
-export function SkillsScreen({ set, skill }: Props) {
+export type SkillsDialog = { kind: "skill"; set?: string } | { kind: "set" } | { kind: "import"; toSet?: string };
+
+function startingSet(dialog: SkillsDialog | undefined): string | undefined {
+  switch (dialog?.kind) {
+    case "skill":
+      return dialog.set;
+    case "import":
+      return dialog.toSet;
+    case "set":
+    case undefined:
+      return undefined;
+  }
+}
+
+type SkillsRoute = Extract<Route, { screen: "skills" }>;
+
+function isView(value: string): value is SkillsView {
+  return skillsViews.some((view) => view === value);
+}
+
+export function SkillsScreen({ route }: { route: SkillsRoute }) {
   const sets = useSkillSets();
   const importable = useImportableSkills();
+  const [dialog, setDialog] = useState<SkillsDialog | undefined>(undefined);
   const data = sets.data ?? [];
+  let selectedSet: string | undefined = undefined;
+  let selectedSkill: string | undefined = undefined;
+  if (route.view === "hub") {
+    selectedSet = route.set;
+    selectedSkill = route.skill;
+  }
+  const importCount = importable.data?.length ?? 0;
+  const close = () => setDialog(undefined);
   return (
-    <section className="skills-page">
+    <>
       <PageHeader
         title="Skills"
-        description="Conjuntos de SKILL.md: o global vai para o usuário, os outros entram nos projetos pelos perfis."
+        description={descriptions[route.view]}
         actions={
           <>
-            <Popover
-              title="Importar skills"
-              wide
-              label={
-                <>
-                  Importar
-                  <CountBadge count={importable.data?.length ?? 0} tone="accent" label="skills para importar" />
-                </>
-              }
-            >
-              {(close) => <ImportPanel sets={data} onNavigate={close} />}
-            </Popover>
-            <Popover title="Novo conjunto" label="Novo conjunto">
-              {(close) => <NewSetForm sets={data} onDone={close} />}
-            </Popover>
-            <Popover
-              title="Nova skill"
-              triggerClassName="primary"
-              label={
-                <>
-                  <PlusIcon />
-                  Nova skill
-                </>
-              }
-            >
-              {(close) => <NewSkillForm sets={data} defaultSet={set} onDone={close} />}
-            </Popover>
+            <Button type="button" variant="outline" onClick={() => setDialog({ kind: "import" })}>
+              <DownloadIcon />
+              Importar
+              {importCount > 0 && (
+                <Badge variant="secondary" className="h-4 px-1.5 tabular-nums" aria-label={`${importCount} para importar`}>
+                  {importCount}
+                </Badge>
+              )}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setDialog({ kind: "set" })}>
+              <FolderPlusIcon />
+              Novo conjunto
+            </Button>
+            <Button type="button" onClick={() => setDialog({ kind: "skill", set: selectedSet })}>
+              <PlusIcon />
+              Nova skill
+            </Button>
           </>
         }
       />
-      <QueryState query={sets}>
-        {(loaded) => (
-          <div className="split skills-split">
-            <nav className="master skill-tree" aria-label="Skills">
-              {loaded.length === 0 && <p className="empty">Nenhum conjunto.</p>}
-              {loaded.map((skillSet) => (
-                <SetGroup key={skillSet.name} skillSet={skillSet} selectedSet={set} selectedSkill={skill} />
-              ))}
-            </nav>
-            <EditorPane set={set} skill={skill} setNames={loaded.map((candidate) => candidate.name)} />
-          </div>
-        )}
-      </QueryState>
-    </section>
+      <Tabs
+        value={route.view}
+        onValueChange={(next) => {
+          if (isView(next)) {
+            void navigate({ screen: "skills", view: next });
+          }
+        }}
+      >
+        <TabsList>
+          {skillsViews.map((view) => (
+            <TabsTrigger key={view} value={view} className="px-3">
+              {skillsViewLabels[view]}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="hub" className="pt-2">
+          <QueryState query={sets}>
+            {(loaded) => (
+              <HubView sets={loaded} selectedSet={selectedSet} selectedSkill={selectedSkill} onDialog={setDialog} />
+            )}
+          </QueryState>
+        </TabsContent>
+        <TabsContent value="todas" className="pt-2">
+          <UserSkillsView sets={data} />
+        </TabsContent>
+        <TabsContent value="diagnostico" className="pt-2">
+          <DoctorView />
+        </TabsContent>
+      </Tabs>
+      <NewSkillDialog
+        key={`skill:${startingSet(dialog)}`}
+        open={dialog?.kind === "skill"}
+        sets={data}
+        defaultSet={startingSet(dialog) ?? selectedSet}
+        onClose={close}
+      />
+      <NewSetDialog open={dialog?.kind === "set"} sets={data} onClose={close} />
+      <ImportDialog
+        key={`import:${startingSet(dialog)}`}
+        open={dialog?.kind === "import"}
+        sets={data}
+        toSet={startingSet(dialog)}
+        onClose={close}
+      />
+    </>
   );
-}
-
-type SetGroupProps = { skillSet: SkillSet; selectedSet?: string; selectedSkill?: string };
-
-function SetGroup({ skillSet, selectedSet, selectedSkill }: SetGroupProps) {
-  return (
-    <div className="set-group">
-      <div className="set-header">
-        <span className="set-name">{skillSet.name}</span>
-        <Badge tone="neutral">{scopeLabels[skillSet.scope]}</Badge>
-        <span className="spacer" />
-        <span className="count count-neutral">{skillSet.skills.length}</span>
-      </div>
-      <div className="set-used-by">
-        {skillSet.usedBy.length === 0 && "Nenhum perfil usa"}
-        {skillSet.usedBy.length > 0 && `Usado por ${skillSet.usedBy.join(", ")}`}
-      </div>
-      <ul className="set-skills">
-        {skillSet.skills.length === 0 && <li className="muted small set-empty">Sem skills.</li>}
-        {skillSet.skills.map((summary) => (
-          <li key={summary.name}>
-            <a
-              className="skill-item"
-              aria-current={skillSet.name === selectedSet && summary.name === selectedSkill && "page"}
-              href={hrefFor({ screen: "skills", set: skillSet.name, skill: summary.name })}
-            >
-              <span className="skill-item-name">{summary.name}</span>
-              <span className="skill-item-description truncate">{summary.description}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function EditorPane({ set, skill, setNames }: { set?: string; skill?: string; setNames: string[] }) {
-  if (set === undefined || skill === undefined) {
-    return <div className="placeholder">Selecione uma skill para editar.</div>;
-  }
-  return <SkillEditor key={`${set}/${skill}`} set={set} name={skill} setNames={setNames} />;
 }

@@ -12,7 +12,6 @@ export const originHints: Record<OriginKind, string> = {
   unmanaged: "Pasta real que nada gerencia. Importe para o hub para editar e versionar.",
 };
 
-/** The set, source or folder that says where exactly the skill comes from. */
 export function originDetail(origin: SkillOrigin): string {
   switch (origin.kind) {
     case "hub":
