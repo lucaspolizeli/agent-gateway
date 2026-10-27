@@ -5,6 +5,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { createAdminApi } from "./admin/api.ts";
 import { ensureAdminToken } from "./admin/token.ts";
 import { serveUi, UI_PREFIX } from "./admin/ui.ts";
+import { errorMessage, HTTP_STATUS, UserError } from "./errors.ts";
 import { createSessionServer } from "./gateway.ts";
 import { GatewayPool } from "./pool.ts";
 
@@ -22,12 +23,22 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   for await (const chunk of req) {
     chunks.push(chunk as Buffer);
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw new UserError("invalid", "Request body is not valid JSON");
+  }
+}
+
+function sendJsonRpcError(res: ServerResponse, status: number, message: string) {
+  res
+    .writeHead(status, { "content-type": "application/json" })
+    .end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message }, id: null }));
 }
 
 function createMcpHandler(pool: GatewayPool, allowedHosts: string[]) {
   const sessions = new Map<string, StreamableHTTPServerTransport>();
-  return async (req: IncomingMessage, res: ServerResponse, url: URL) => {
+  const handle = async (req: IncomingMessage, res: ServerResponse, url: URL) => {
     const match = MCP_ROUTE.exec(url.pathname);
     if (!match) {
       res.writeHead(404).end("Use /mcp/<profile>\n");
@@ -75,6 +86,16 @@ function createMcpHandler(pool: GatewayPool, allowedHosts: string[]) {
     };
     await createSessionServer(gateway).connect(transport);
     await transport.handleRequest(req, res, body);
+  };
+  return async (req: IncomingMessage, res: ServerResponse, url: URL) => {
+    try {
+      await handle(req, res, url);
+    } catch (error) {
+      if (!(error instanceof UserError) || res.headersSent) {
+        throw error;
+      }
+      sendJsonRpcError(res, HTTP_STATUS[error.kind], errorMessage(error));
+    }
   };
 }
 

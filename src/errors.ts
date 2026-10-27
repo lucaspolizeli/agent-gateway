@@ -10,6 +10,9 @@ export class UserError extends Error {
   }
 }
 
+/** HTTP status for each kind, shared by the admin API and the MCP surface. */
+export const HTTP_STATUS: Record<UserErrorKind, number> = { invalid: 400, notFound: 404, conflict: 409 };
+
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;

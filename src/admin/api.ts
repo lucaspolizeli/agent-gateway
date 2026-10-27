@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
 import { loadConfig, ServerSchema, slug, writeConfig } from "../config.ts";
-import { errorMessage, UserError, type UserErrorKind } from "../errors.ts";
+import { errorMessage, HTTP_STATUS, UserError } from "../errors.ts";
 import type { GatewayPool } from "../pool.ts";
 import { installedProfiles, installProject, listProjects, relinkSkills, syncAll, uninstallProject, unsafeProjectDir } from "../project.ts";
 import type { ApiError, ProjectApplyResult, ProjectView, SyncResult } from "./contract.ts";
@@ -34,7 +34,6 @@ type Route = {
 };
 
 const MAX_BODY_BYTES = 1024 * 1024;
-const STATUS: Record<UserErrorKind, number> = { invalid: 400, notFound: 404, conflict: 409 };
 
 const noParams = z.object({});
 const noBody = z.unknown();
@@ -348,7 +347,7 @@ export function createAdminApi(context: AdminContext) {
       send(res, 200, await match.entry.handle({ params: match.params, body, query: url.searchParams }));
     } catch (error) {
       if (error instanceof UserError) {
-        sendError(res, STATUS[error.kind], error.message);
+        sendError(res, HTTP_STATUS[error.kind], error.message);
       } else if (error instanceof z.ZodError) {
         sendError(res, 400, describeInvalidInput(error));
       } else {

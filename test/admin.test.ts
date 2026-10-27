@@ -597,3 +597,22 @@ test("validation errors read as plain pt-BR sentences, without zod's decorations
   );
   assert.match(await errorOf("PUT", "/api/secrets/work/CR", { value: "a\r\nb" }), /retorno de carro/);
 });
+
+test("MCP over HTTP answers an unknown profile with 404 and the reason, and bad JSON with 400", async () => {
+  const initialize = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1" } },
+  };
+  const headers = { accept: "application/json, text/event-stream" };
+  const unknown = await call("POST", "/mcp/nope", { body: initialize, headers });
+  assert.equal(unknown.status, 404, unknown.text);
+  assert.match((unknown.json as { error: { message: string } }).error.message, /Unknown profile "nope"/);
+
+  const garbled = await call("POST", "/mcp/work", { body: "{ not json", headers });
+  assert.equal(garbled.status, 400, garbled.text);
+
+  const stranger = new Client({ name: "test", version: "1.0.0" });
+  await assert.rejects(stranger.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp/nope`))), /Unknown profile/);
+});
