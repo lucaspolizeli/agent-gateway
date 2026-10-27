@@ -203,12 +203,37 @@ function readText(path: string): string {
 }
 
 /** The three clients are registered at the same time, so a slow one does not hold up the others. */
+const PROJECT_CONFIG_FILE: Record<"codex" | "grok", string> = { codex: ".codex/config.toml", grok: ".grok/config.toml" };
+
+function trackedByGit(dir: string, file: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile("git", ["-C", dir, "ls-files", "--error-unmatch", file], (error) => resolve(error === null));
+  });
+}
+
+/** A project config file the repository tracks belongs to the team, so the personal gw entry stays out of it. */
+async function unlessTracked(client: "codex" | "grok", scope: Scope, action: () => Promise<ClientResult>): Promise<ClientResult> {
+  const file = PROJECT_CONFIG_FILE[client];
+  if (scope.kind === "project" && (await trackedByGit(scope.dir, file))) {
+    return { client, ok: true, detail: `skipped: ${file} is tracked by git, so the personal gw entry stays out of it` };
+  }
+  return action();
+}
+
 export function registerAll(endpoint: Endpoint, scope: Scope, timing: Timing = { timeoutMs: COMMAND_TIMEOUT_MS }): Promise<ClientResult[]> {
-  return Promise.all([registerClaude(endpoint, scope, timing), registerCodex(endpoint, scope, timing), registerGrok(endpoint, scope, timing)]);
+  return Promise.all([
+    registerClaude(endpoint, scope, timing),
+    unlessTracked("codex", scope, () => registerCodex(endpoint, scope, timing)),
+    unlessTracked("grok", scope, () => registerGrok(endpoint, scope, timing)),
+  ]);
 }
 
 export function unregisterAll(scope: Scope, timing: Timing = { timeoutMs: COMMAND_TIMEOUT_MS }): Promise<ClientResult[]> {
-  return Promise.all([unregisterClaude(scope, timing), unregisterCodex(scope, timing), unregisterGrok(scope, timing)]);
+  return Promise.all([
+    unregisterClaude(scope, timing),
+    unlessTracked("codex", scope, () => unregisterCodex(scope, timing)),
+    unlessTracked("grok", scope, () => unregisterGrok(scope, timing)),
+  ]);
 }
 
 /** Files the clients write inside a project, relative to its root. */

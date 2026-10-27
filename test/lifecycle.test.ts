@@ -20,7 +20,7 @@ model = "gpt-5"  # do not touch
 effort = "low"
 `;
 
-test("installing then uninstalling leaves a commented .codex/config.toml byte-identical", () => {
+test("a tracked .codex/config.toml belongs to the team and is never edited by install or uninstall", () => {
   const sandbox = createSandbox();
   const repo = join(sandbox.base, "tracked");
   initRepo(repo);
@@ -31,9 +31,9 @@ test("installing then uninstalling leaves a commented .codex/config.toml byte-id
 
   const installed = sandbox.agw(["install", "work", repo]);
   assert.equal(installed.status, 0, installed.stdout + installed.stderr);
-  const afterInstall = readFileSync(join(repo, ".codex", "config.toml"), "utf8");
-  assert.ok(afterInstall.startsWith(COMMENTED), "comments and formatting above the new table are untouched");
-  assert.match(afterInstall, /\[mcp_servers\.gw\]/);
+  assert.equal(readFileSync(join(repo, ".codex", "config.toml"), "utf8"), COMMENTED);
+  assert.match(installed.stdout, /tracked by git/);
+  assert.equal(git(repo, "status", "--porcelain").trim(), "");
 
   const removed = sandbox.agw(["uninstall", repo]);
   assert.equal(removed.status, 0, removed.stdout + removed.stderr);

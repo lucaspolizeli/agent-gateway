@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -61,4 +62,23 @@ test("a CLI that hangs on the remove before an add fails after one deadline, not
   assert.equal(results[0]!.ok, false);
   assert.match(results[0]!.detail, /claude did not finish within 1\.5s/);
   assert.ok(elapsed < 2900, `took ${elapsed}ms; the add ran after the remove had already hung`);
+});
+
+test("a project config file tracked by git is left alone, since it belongs to the team", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "agw-tracked-"));
+  execFileSync("git", ["init", "-q", repo]);
+  mkdirSync(join(repo, ".codex"));
+  const team = `# team settings\n[mcp_servers.shared]\ncommand = "x"\n`;
+  writeFileSync(join(repo, ".codex", "config.toml"), team);
+  execFileSync("git", ["-C", repo, "add", ".codex/config.toml"]);
+
+  const results = await registerAll(endpoint, { kind: "project", dir: repo }, { timeoutMs: 1500 });
+  const codex = results.find((result) => result.client === "codex")!;
+  assert.equal(codex.ok, true);
+  assert.match(codex.detail, /tracked by git/);
+  assert.equal(readFileSync(join(repo, ".codex", "config.toml"), "utf8"), team);
+
+  const removed = await unregisterAll({ kind: "project", dir: repo }, { timeoutMs: 1500 });
+  assert.match(removed.find((result) => result.client === "codex")!.detail, /tracked by git/);
+  assert.equal(readFileSync(join(repo, ".codex", "config.toml"), "utf8"), team);
 });
