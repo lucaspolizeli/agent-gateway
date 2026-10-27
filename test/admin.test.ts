@@ -6,6 +6,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   readlinkSync,
   rmSync,
@@ -508,4 +509,54 @@ test("POST /api/sync returns every project in exactly one bucket", async () => {
   for (const dir of [good, gone, orphan]) {
     await call("DELETE", "/api/projects", { body: { dir } });
   }
+});
+
+test("symlinks in the skills hub never let the API reach outside it", async () => {
+  const outside = join(dirname(home), "outside-hub");
+  const secretDoc = "---\nname: secret\ndescription: outside the hub\n---\nTop secret\n";
+  mkdirSync(join(outside, "set", "secret"), { recursive: true });
+  writeFileSync(join(outside, "set", "secret", "SKILL.md"), secretDoc);
+  mkdirSync(join(outside, "skill"), { recursive: true });
+  writeFileSync(join(outside, "skill", "SKILL.md"), secretDoc);
+  writeFileSync(join(outside, "skill", "extra.txt"), "extra");
+  writeFileSync(join(outside, "file.md"), secretDoc);
+  const skills = join(home, "skills");
+  symlinkSync(join(outside, "set"), join(skills, "linkset"));
+  symlinkSync(join(outside, "skill"), join(skills, "globex", "escape"));
+  mkdirSync(join(skills, "globex", "filelink"));
+  symlinkSync(join(outside, "file.md"), join(skills, "globex", "filelink", "SKILL.md"));
+  makeSkill(join(skills, "globex", "withrefs"), "withrefs");
+  symlinkSync(join(outside, "skill"), join(skills, "globex", "withrefs", "refs"));
+  makeSkill(join(skills, "globex", "real"), "real");
+  const mine = "---\nname: real\ndescription: mine\n---\nBody\n";
+
+  const snapshot = () => ["set/secret/SKILL.md", "skill/SKILL.md", "skill/extra.txt", "file.md"].map((file) => readFileSync(join(outside, file), "utf8"));
+  const before = snapshot();
+  const refused = async (method: string, path: string, body?: unknown) => {
+    const reply = await call(method, path, { body });
+    assert.ok(reply.status >= 400 && reply.status < 500, `${method} ${path} -> ${reply.status} ${reply.text}`);
+    assert.equal(reply.text.includes("Top secret"), false, `${method} ${path} leaked outside content`);
+  };
+
+  for (const [set, name] of [["linkset", "secret"], ["globex", "escape"], ["globex", "filelink"]] as const) {
+    await refused("GET", `/api/skills/${set}/${name}`);
+    await refused("PUT", `/api/skills/${set}/${name}`, { content: `---\nname: ${name}\ndescription: overwritten\n---\n` });
+    await refused("POST", `/api/skills/${set}/${name}/move`, { toSet: "acme" });
+    await refused("DELETE", `/api/skills/${set}/${name}`);
+  }
+  await refused("PUT", "/api/skills/linkset/fresh", { content: "---\nname: fresh\ndescription: x\n---\n" });
+  await refused("POST", "/api/skills/globex/real/move", { toSet: "linkset" });
+
+  assert.deepEqual(snapshot(), before, "nothing outside the hub changed");
+  assert.deepEqual(readdirSync(join(outside, "set")), ["secret"]);
+  assert.equal(isLink(join(skills, "linkset")), true);
+  assert.equal(isLink(join(skills, "globex", "escape")), true);
+
+  const sets = await api<Array<{ name: string; skills: Array<{ name: string }> }>>("GET", "/api/skills");
+  assert.equal(sets.some((set) => set.name === "linkset"), false);
+  assert.deepEqual(sets.find((set) => set.name === "globex")?.skills.map((skill) => skill.name).sort(), ["real", "withrefs"]);
+  assert.deepEqual((await api<{ files: string[] }>("GET", "/api/skills/globex/withrefs")).files, []);
+
+  const written = await api<{ content: string }>("PUT", "/api/skills/globex/real", { content: mine });
+  assert.equal(written.content, mine, "the hub's own skills still work");
 });
