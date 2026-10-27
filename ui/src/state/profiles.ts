@@ -10,12 +10,16 @@ export function useProfiles() {
 }
 
 /** Polls while the tab is visible: React Query pauses intervals for hidden documents. */
-export function useProfileStatus(profile: string) {
-  return useQuery({
+export function statusQuery(profile: string) {
+  return {
     queryKey: queryKeys.status(profile),
     queryFn: () => api.getProfileStatus(profile, false),
     refetchInterval: STATUS_POLL_MS,
-  });
+  };
+}
+
+export function useProfileStatus(profile: string) {
+  return useQuery(statusQuery(profile));
 }
 
 function useStatusMutation<TVars>(run: (vars: TVars) => Promise<ProfileStatus>) {

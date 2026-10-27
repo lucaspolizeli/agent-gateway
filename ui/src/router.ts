@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 
+export const profileTabs = ["composicao", "tools", "segredos"] as const;
+
+export type ProfileTab = (typeof profileTabs)[number];
+
 export type Route =
   | { screen: "status" }
   | { screen: "servers"; server?: string }
-  | { screen: "profiles"; profile?: string }
+  | { screen: "profiles"; profile?: string; tab?: ProfileTab }
   | { screen: "skills"; set?: string; skill?: string }
   | { screen: "projects" };
 
@@ -16,10 +20,14 @@ function decode(segment: string | undefined): string | undefined {
   return decodeURIComponent(segment);
 }
 
+function parseTab(segment: string | undefined): ProfileTab | undefined {
+  return profileTabs.find((tab) => tab === segment);
+}
+
 const parsers: Record<Screen, (params: Array<string | undefined>) => Route> = {
   status: () => ({ screen: "status" }),
   servers: ([server]) => ({ screen: "servers", server }),
-  profiles: ([profile]) => ({ screen: "profiles", profile }),
+  profiles: ([profile, tab]) => ({ screen: "profiles", profile, tab: parseTab(tab) }),
   skills: ([set, skill]) => ({ screen: "skills", set, skill }),
   projects: () => ({ screen: "projects" }),
 };
@@ -41,7 +49,7 @@ function paramsOf(route: Route): Array<string | undefined> {
     case "servers":
       return [route.server];
     case "profiles":
-      return [route.profile];
+      return [route.profile, route.tab];
     case "skills":
       return [route.set, route.skill];
     case "status":

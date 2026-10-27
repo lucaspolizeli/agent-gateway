@@ -1,4 +1,5 @@
 import type { HttpServerSpec, ServerSpec, StdioServerSpec } from "../contract.ts";
+import { basename } from "./format.ts";
 import { duplicateKeys, newRow, recordFromRows, rowsFromRecord, type KeyValueRow } from "./keyValueRows.ts";
 
 export type ServerKind = "stdio" | "http";
@@ -91,9 +92,20 @@ export function formProblems(form: ServerForm): string[] {
   return problems;
 }
 
+function shortArg(arg: string): string {
+  if (arg.startsWith("/")) {
+    return basename(arg);
+  }
+  return arg;
+}
+
+/** One short line for lists: `node echo-server.ts`, or the host of an http server. */
 export function serverSummary(spec: ServerSpec): string {
   if ("url" in spec) {
+    if (URL.canParse(spec.url)) {
+      return new URL(spec.url).host;
+    }
     return spec.url;
   }
-  return [spec.command, ...spec.args].join(" ");
+  return [spec.command, ...spec.args].map(shortArg).join(" ");
 }
