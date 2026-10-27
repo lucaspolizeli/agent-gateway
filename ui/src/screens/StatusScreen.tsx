@@ -172,7 +172,7 @@ function MissingSecretRow({ item }: { item: Extract<AttentionItem, { kind: "miss
       </ItemContent>
       <ItemActions>
         <Button variant="outline" asChild>
-          <a href={hrefFor({ screen: "profiles", profile: item.profile, tab: "segredos" })}>Definir segredo</a>
+          <a href={hrefFor({ screen: "profiles", profile: item.profile, tab: "secrets" })}>Definir segredo</a>
         </Button>
       </ItemActions>
     </Item>

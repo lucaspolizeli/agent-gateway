@@ -14,8 +14,8 @@ import { adminToken } from "./api/token.ts";
 import { AppSidebar, type NavCount } from "./components/AppSidebar.tsx";
 import { ErrorBox } from "./components/QueryState.tsx";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog.tsx";
-import { hrefFor, screenHome, useRoute, type ProfileTab, type Route, type Screen } from "./router.ts";
-import { ProfilesScreen } from "./screens/ProfilesScreen.tsx";
+import { hrefFor, screenHome, useRoute, type Route, type Screen } from "./router.ts";
+import { ProfilesScreen, profileTabLabels } from "./screens/ProfilesScreen.tsx";
 import { ProjectsScreen } from "./screens/ProjectsScreen.tsx";
 import { ServersScreen } from "./screens/ServersScreen.tsx";
 import { SkillsScreen, skillsViewLabels } from "./screens/SkillsScreen.tsx";
@@ -48,8 +48,6 @@ const screenLabels: Record<Screen, string> = {
   projects: "Projetos",
 };
 
-const profileTabLabels: Record<ProfileTab, string> = { composicao: "Composição", tools: "Tools", segredos: "Segredos" };
-
 type Crumb = { label: string; href?: string };
 
 function crumbsFor(route: Route): Crumb[] {
@@ -64,7 +62,7 @@ function crumbsFor(route: Route): Crumb[] {
       return [
         home,
         { label: route.profile, href: hrefFor({ screen: "profiles", profile: route.profile }) },
-        { label: profileTabLabels[route.tab ?? "composicao"] },
+        { label: profileTabLabels[route.tab ?? "composition"] },
       ];
     case "skills":
       if (route.view !== "hub") {

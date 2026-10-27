@@ -97,7 +97,7 @@ function profileLines(view: ResolvedProfileView, status: ProfileStatus | undefin
     lines.push(`--Iniciar e testar conexões | ${action(agw, ["menubar", "start", view.name])}`);
   }
   for (const key of view.missingSecrets) {
-    lines.push(`--Segredo faltando: ${key} | sfimage=key.fill sfcolor=${HEALTH_COLOR.warn} ${action(agw, ["ui", `profiles/${view.name}/segredos`])}`);
+    lines.push(`--Segredo faltando: ${key} | sfimage=key.fill sfcolor=${HEALTH_COLOR.warn} ${action(agw, ["ui", `profiles/${view.name}/secrets`])}`);
   }
   lines.push(`--Abrir na interface | ${action(agw, ["ui", `profiles/${view.name}`])}`);
   return lines;

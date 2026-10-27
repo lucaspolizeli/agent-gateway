@@ -14,7 +14,7 @@ This page lists the commands, the configuration format, the files, and the admin
 | `agw list` | Prints the profiles and the installed repositories. |
 | `agw stdio <profile>` | Runs the gateway over stdio. Clients start this command. You do not run it by hand. |
 | `agw serve [--port N]` | Runs the gateway over HTTP, with `/mcp/<profile>`, `/api`, and `/ui/`. |
-| `agw ui [route]` | Opens the web UI of the running `agw serve`. `route` opens a screen directly, for example `profiles/acme/segredos`. |
+| `agw ui [route]` | Opens the web UI of the running `agw serve`. `route` opens a screen directly, for example `profiles/acme/secrets`. |
 | `agw service install` | Writes `~/Library/LaunchAgents/dev.agent-gateway.plist` and loads it. The agent runs `agw serve` at login, keeps it alive, and uses the `PATH` of the installing shell. macOS only. |
 | `agw service start` | Restarts the launchd agent. |
 | `agw service uninstall` | Unloads and deletes the launchd agent. |

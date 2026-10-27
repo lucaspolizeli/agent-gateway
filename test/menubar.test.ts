@@ -45,5 +45,5 @@ test("all running profiles healthy is green, and a missing secret links to its t
 
   const missing = renderMenu({ kind: "up", logPath: "/l", profiles: [{ view: view("initech", ["ZOHO"]) }] }, AGW);
   assert.match(missing.split("\n")[0]!, /sfcolor=#FF9500/);
-  assert.match(missing, /--Segredo faltando: ZOHO .* param1="ui" param2="profiles\/initech\/segredos"/);
+  assert.match(missing, /--Segredo faltando: ZOHO .* param1="ui" param2="profiles\/initech\/secrets"/);
 });

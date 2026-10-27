@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { confirmLeave, hasUnsavedChanges } from "./state/unsaved.ts";
 
-export const profileTabs = ["composicao", "tools", "segredos"] as const;
+export const profileTabs = ["composition", "tools", "secrets"] as const;
 
 export type ProfileTab = (typeof profileTabs)[number];
 
-export const skillsViews = ["hub", "todas", "diagnostico"] as const;
+export const skillsViews = ["hub", "all", "doctor"] as const;
 
 export type SkillsView = (typeof skillsViews)[number];
 
@@ -14,7 +14,7 @@ export type Route =
   | { screen: "servers"; server?: string }
   | { screen: "profiles"; profile?: string; tab?: ProfileTab }
   | { screen: "skills"; view: "hub"; set?: string; skill?: string }
-  | { screen: "skills"; view: "todas" | "diagnostico" }
+  | { screen: "skills"; view: "all" | "doctor" }
   | { screen: "projects" };
 
 export type Screen = Route["screen"];
@@ -43,7 +43,7 @@ function parseTab(segment: string | undefined): ProfileTab | undefined {
 
 function parseSkills([first, skill]: Array<string | undefined>): Route {
   const view = skillsViews.find((candidate) => `${VIEW_PREFIX}${candidate}` === first);
-  if (view === "todas" || view === "diagnostico") {
+  if (view === "all" || view === "doctor") {
     return { screen: "skills", view };
   }
   return { screen: "skills", view: "hub", set: first, skill };

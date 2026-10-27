@@ -13,12 +13,12 @@ import { HubView } from "./skills/HubView.tsx";
 import { ImportDialog } from "./skills/ImportDialog.tsx";
 import { UserSkillsView } from "./skills/UserSkillsView.tsx";
 
-export const skillsViewLabels: Record<SkillsView, string> = { hub: "Hub", todas: "Todas", diagnostico: "Diagnóstico" };
+export const skillsViewLabels: Record<SkillsView, string> = { hub: "Hub", all: "All", doctor: "Doctor" };
 
 const descriptions: Record<SkillsView, string> = {
   hub: "Conjuntos de SKILL.md: o global vai para o usuário, os outros entram nos projetos pelos perfis.",
-  todas: "Toda skill que os CLIs enxergam no nível do usuário, e de onde cada uma vem.",
-  diagnostico: "Pergunta a Claude, Codex e Grok quais skills eles realmente descobrem.",
+  all: "Toda skill que os CLIs enxergam no nível do usuário, e de onde cada uma vem.",
+  doctor: "Pergunta a Claude, Codex e Grok quais skills eles realmente descobrem.",
 };
 
 export type SkillsDialog = { kind: "skill"; set?: string } | { kind: "set" } | { kind: "import"; toSet?: string };
@@ -103,10 +103,10 @@ export function SkillsScreen({ route }: { route: SkillsRoute }) {
             )}
           </QueryState>
         </TabsContent>
-        <TabsContent value="todas" className="pt-2">
+        <TabsContent value="all" className="pt-2">
           <UserSkillsView sets={data} />
         </TabsContent>
-        <TabsContent value="diagnostico" className="pt-2">
+        <TabsContent value="doctor" className="pt-2">
           <DoctorView />
         </TabsContent>
       </Tabs>

@@ -74,7 +74,7 @@ export function ProfilesScreen({ selected, tab }: Props) {
                 onCreate={() => setCreating(true)}
               />
             }
-            detail={<DetailPane config={data} selected={selected} tab={tab ?? "composicao"} onCreate={() => setCreating(true)} />}
+            detail={<DetailPane config={data} selected={selected} tab={tab ?? "composition"} onCreate={() => setCreating(true)} />}
           />
         )}
       </QueryState>
@@ -240,7 +240,7 @@ function DetailPane({ config, selected, tab, onCreate }: PaneProps) {
   return <ProfileDetail key={selected} name={selected} config={config} tab={tab} />;
 }
 
-const tabLabels: Record<ProfileTab, string> = { composicao: "Composição", tools: "Tools", segredos: "Segredos" };
+export const profileTabLabels: Record<ProfileTab, string> = { composition: "Composition", tools: "Tools", secrets: "Secrets" };
 
 function isTab(value: string): value is ProfileTab {
   return profileTabs.some((tab) => tab === value);
@@ -259,9 +259,9 @@ function ProfileDetail({ name, config, tab }: DetailProps) {
   const missing = view?.missingSecrets ?? [];
   const chain = view?.chain ?? [name];
   const counts: Record<ProfileTab, { count: number; variant: "secondary" | "warning" }> = {
-    composicao: { count: 0, variant: "secondary" },
+    composition: { count: 0, variant: "secondary" },
     tools: { count: status?.tools.length ?? 0, variant: "secondary" },
-    segredos: { count: missing.length, variant: "warning" },
+    secrets: { count: missing.length, variant: "warning" },
   };
 
   return (
@@ -316,7 +316,7 @@ function ProfileDetail({ name, config, tab }: DetailProps) {
           <TabsList>
             {profileTabs.map((id) => (
               <TabsTrigger key={id} value={id}>
-                {tabLabels[id]}
+                {profileTabLabels[id]}
                 {counts[id].count > 0 && (
                   <Badge variant={counts[id].variant} className="h-4 px-1.5 tabular-nums">
                     {counts[id].count}
@@ -328,7 +328,7 @@ function ProfileDetail({ name, config, tab }: DetailProps) {
           {skillSets.error !== null && (
             <ErrorBox title="Conjuntos de skills indisponíveis" message={skillSets.error.message} />
           )}
-          <TabsContent value="composicao" className="pt-2">
+          <TabsContent value="composition" className="pt-2">
             <ProfileSpecEditor
               name={name}
               spec={spec}
@@ -340,7 +340,7 @@ function ProfileDetail({ name, config, tab }: DetailProps) {
           <TabsContent value="tools" className="pt-2">
             <ToolsPanel profile={name} />
           </TabsContent>
-          <TabsContent value="segredos" className="pt-2">
+          <TabsContent value="secrets" className="pt-2">
             <SecretsEditor profile={name} missing={missing} />
           </TabsContent>
         </Tabs>

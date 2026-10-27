@@ -83,7 +83,7 @@ function IssueDetail({ profile, upstream }: { profile: string; upstream: Upstrea
       {keys.length > 0 && (
         <a
           className="text-xs font-medium underline underline-offset-4"
-          href={hrefFor({ screen: "profiles", profile, tab: "segredos" })}
+          href={hrefFor({ screen: "profiles", profile, tab: "secrets" })}
         >
           Definir {keys.join(", ")} na aba Segredos
         </a>
