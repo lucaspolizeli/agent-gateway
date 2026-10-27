@@ -36,7 +36,7 @@ export function ListLink({ href, current, children, className }: ListLinkProps) 
       asChild
       size="sm"
       className={cn(
-        "flex-col items-stretch gap-1 px-2.5 py-2 aria-[current=page]:bg-muted aria-[current=page]:ring-1 aria-[current=page]:ring-border",
+        "w-full min-w-0 flex-col items-stretch gap-1 px-2.5 py-2 aria-[current=page]:bg-muted aria-[current=page]:ring-1 aria-[current=page]:ring-border",
         className,
       )}
     >

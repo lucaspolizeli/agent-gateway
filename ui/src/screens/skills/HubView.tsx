@@ -100,8 +100,10 @@ function SetGroup({ skillSet, selectedSet, selectedSkill, onDialog }: SetGroupPr
           href={hrefFor({ screen: "skills", view: "hub", set: skillSet.name, skill: summary.name })}
           current={skillSet.name === selectedSet && summary.name === selectedSkill}
         >
-          <span className="truncate text-sm font-medium">{summary.name}</span>
-          <span className="truncate text-xs text-muted-foreground">{summary.description}</span>
+          <span className="block truncate text-sm font-medium">{summary.name}</span>
+          <span className="line-clamp-2 text-xs text-muted-foreground" title={summary.description}>
+            {summary.description}
+          </span>
         </ListLink>
       ))}
     </section>
