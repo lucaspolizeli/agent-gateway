@@ -22,7 +22,7 @@ function read(home: string, profile: string): Record<string, string> {
  */
 export function formatEnvLine(key: string, value: string): string {
   if (value.includes("\r")) {
-    throw new UserError("invalid", `O valor de ${key} não pode ser salvo: retorno de carro (CR, \\r) não é suportado`);
+    throw new UserError("invalid", `Cannot save ${key}: carriage returns (CR, \\r) are not supported. Remove them from the value.`);
   }
   for (const quote of ["'", "`", '"']) {
     const line = `${key}=${quote}${value}${quote}`;
@@ -30,7 +30,7 @@ export function formatEnvLine(key: string, value: string): string {
       return line;
     }
   }
-  throw new UserError("invalid", `O valor de ${key} não pode ser salvo: contém ', " e \` ao mesmo tempo`);
+  throw new UserError("invalid", `Cannot save ${key}: the value contains ', " and \` together. Remove one kind of quote.`);
 }
 
 function write(home: string, profile: string, secrets: Record<string, string>) {

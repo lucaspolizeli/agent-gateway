@@ -110,23 +110,23 @@ export function skillProblems(folder: string, content: string): string[] {
   const problems: string[] = [];
   const name = fields.name;
   if (!name) {
-    problems.push(`o frontmatter não tem "name"`);
+    problems.push(`the frontmatter has no "name"`);
   } else {
     if (name !== folder) {
-      problems.push(`"name: ${name}" é diferente do nome da pasta "${folder}"`);
+      problems.push(`"name: ${name}" does not match the folder name "${folder}"`);
     }
     if (!SPEC_NAME.test(name)) {
-      problems.push(`"name" só pode ter letras minúsculas, dígitos e hífens simples entre eles`);
+      problems.push(`"name" can only have lowercase letters, digits and single hyphens between them`);
     }
     if (name.length > MAX_NAME) {
-      problems.push(`"name" tem ${name.length} caracteres, o máximo é ${MAX_NAME}`);
+      problems.push(`"name" has ${name.length} characters, the maximum is ${MAX_NAME}`);
     }
   }
   const description = fields.description;
   if (!description) {
-    problems.push(`o frontmatter não tem "description"`);
+    problems.push(`the frontmatter has no "description"`);
   } else if (description.length > MAX_DESCRIPTION) {
-    problems.push(`"description" tem ${description.length} caracteres, o máximo é ${MAX_DESCRIPTION}`);
+    problems.push(`"description" has ${description.length} characters, the maximum is ${MAX_DESCRIPTION}`);
   }
   return problems;
 }

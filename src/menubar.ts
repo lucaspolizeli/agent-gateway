@@ -69,20 +69,20 @@ function upstreamLines(profile: string, upstream: UpstreamState, agw: string): s
     return [`--${upstream.server} · ${upstream.toolCount} tools | ${style}`];
   }
   if (upstream.state === "connecting") {
-    return [`--${upstream.server} · conectando | ${style}`];
+    return [`--${upstream.server} · connecting | ${style}`];
   }
   return [
-    `--${upstream.server} · falhou | ${style}`,
+    `--${upstream.server} · failed | ${style}`,
     `----${text(upstream.error)} | size=11`,
-    `----Reconectar | ${action(agw, ["menubar", "reconnect", profile, upstream.server])}`,
+    `----Reconnect | ${action(agw, ["menubar", "reconnect", profile, upstream.server])}`,
   ];
 }
 
 function profileLines(view: ResolvedProfileView, status: ProfileStatus | undefined, agw: string): string[] {
   const health = profileHealth(status, view);
-  let label = "parado";
+  let label = "stopped";
   if (status?.running) {
-    label = "rodando";
+    label = "running";
   }
   const lines = [`${view.name} · ${label} | sfimage=circle.fill sfcolor=${HEALTH_COLOR[health]}`];
   lines.push(`--${view.chain.join(" › ")} | size=11`);
@@ -91,15 +91,15 @@ function profileLines(view: ResolvedProfileView, status: ProfileStatus | undefin
       lines.push(...upstreamLines(view.name, upstream, agw));
     }
     if (status.upstreams.length === 0) {
-      lines.push("--Nenhum servidor neste perfil | size=11");
+      lines.push("--No servers in this profile | size=11");
     }
   } else {
-    lines.push(`--Iniciar e testar conexões | ${action(agw, ["menubar", "start", view.name])}`);
+    lines.push(`--Start and test connections | ${action(agw, ["menubar", "start", view.name])}`);
   }
   for (const key of view.missingSecrets) {
-    lines.push(`--Segredo faltando: ${key} | sfimage=key.fill sfcolor=${HEALTH_COLOR.warn} ${action(agw, ["ui", `profiles/${view.name}/secrets`])}`);
+    lines.push(`--Missing secret: ${key} | sfimage=key.fill sfcolor=${HEALTH_COLOR.warn} ${action(agw, ["ui", `profiles/${view.name}/secrets`])}`);
   }
-  lines.push(`--Abrir na interface | ${action(agw, ["ui", `profiles/${view.name}`])}`);
+  lines.push(`--Open in UI | ${action(agw, ["ui", `profiles/${view.name}`])}`);
   return lines;
 }
 
@@ -107,24 +107,24 @@ function profileLines(view: ResolvedProfileView, status: ProfileStatus | undefin
 export function renderMenu(state: MenuState, agw: string): string {
   const lines = [` | sfimage=${ICON} sfcolor=${HEALTH_COLOR[overallHealth(state)]}`, "---"];
   if (state.kind === "down") {
-    lines.push("agw serve não está rodando | color=#FF3B30");
-    lines.push(`Iniciar serviço | ${action(agw, ["service", "start"])}`);
+    lines.push("agw serve is not running | color=#FF3B30");
+    lines.push(`Start service | ${action(agw, ["service", "start"])}`);
   } else {
     const running = state.profiles.filter(({ status }) => status?.running).length;
     const failures = state.profiles
       .flatMap(({ status }) => status?.upstreams ?? [])
       .filter((upstream) => upstream.state === "failed").length;
-    lines.push(`agw · ${running} de ${state.profiles.length} perfis rodando · ${failures} falhas | size=12`);
-    lines.push(`Abrir interface | sfimage=macwindow ${action(agw, ["ui"])}`);
+    lines.push(`agw · ${running} of ${state.profiles.length} profiles running · ${failures} failed | size=12`);
+    lines.push(`Open UI | sfimage=macwindow ${action(agw, ["ui"])}`);
     lines.push("---");
     for (const { view, status } of state.profiles) {
       lines.push(...profileLines(view, status, agw));
     }
     lines.push("---");
-    lines.push(`Reiniciar serviço | ${action(agw, ["service", "start"])}`);
+    lines.push(`Restart service | ${action(agw, ["service", "start"])}`);
   }
-  lines.push(`Ver log | bash="/usr/bin/open" param1="-a" param2="Console" param3="${state.logPath}" terminal=false`);
-  lines.push("Atualizar | refresh=true");
+  lines.push(`View log | bash="/usr/bin/open" param1="-a" param2="Console" param3="${state.logPath}" terminal=false`);
+  lines.push("Refresh | refresh=true");
   return `${lines.join("\n")}\n`;
 }
 

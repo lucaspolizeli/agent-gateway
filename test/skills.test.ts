@@ -39,18 +39,18 @@ test("frontmatter that a CLI would reject or skip is reported, one problem per r
   const skill = (fields: string) => `---\n${fields}\n---\nBody\n`;
   assert.deepEqual(skillProblems("deploy", skill("name: deploy\ndescription: Ships it")), []);
   assert.deepEqual(skillProblems("deploy", skill("name: >\n  deploy\ndescription: |\n  Ships\n  it")), []);
-  assert.deepEqual(skillProblems("deploy", "no frontmatter"), [`o frontmatter não tem "name"`, `o frontmatter não tem "description"`]);
-  assert.deepEqual(skillProblems("deploy", skill("name: ship\ndescription: x")), [`"name: ship" é diferente do nome da pasta "deploy"`]);
+  assert.deepEqual(skillProblems("deploy", "no frontmatter"), [`the frontmatter has no "name"`, `the frontmatter has no "description"`]);
+  assert.deepEqual(skillProblems("deploy", skill("name: ship\ndescription: x")), [`"name: ship" does not match the folder name "deploy"`]);
   assert.deepEqual(skillProblems("Deploy_It", skill("name: Deploy_It\ndescription: x")), [
-    `"name" só pode ter letras minúsculas, dígitos e hífens simples entre eles`,
+    `"name" can only have lowercase letters, digits and single hyphens between them`,
   ]);
   assert.deepEqual(skillProblems("a--b", skill("name: a--b\ndescription: x")), [
-    `"name" só pode ter letras minúsculas, dígitos e hífens simples entre eles`,
+    `"name" can only have lowercase letters, digits and single hyphens between them`,
   ]);
   const long = "a".repeat(65);
-  assert.deepEqual(skillProblems(long, skill(`name: ${long}\ndescription: x`)), [`"name" tem 65 caracteres, o máximo é 64`]);
+  assert.deepEqual(skillProblems(long, skill(`name: ${long}\ndescription: x`)), [`"name" has 65 characters, the maximum is 64`]);
   assert.deepEqual(skillProblems("a".repeat(64), skill(`name: ${"a".repeat(64)}\ndescription: ${"d".repeat(1024)}`)), []);
   assert.deepEqual(skillProblems("deploy", skill(`name: deploy\ndescription: ${"d".repeat(1025)}`)), [
-    `"description" tem 1025 caracteres, o máximo é 1024`,
+    `"description" has 1025 characters, the maximum is 1024`,
   ]);
 });

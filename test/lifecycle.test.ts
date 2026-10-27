@@ -143,7 +143,7 @@ test("installing into a folder that does not exist is refused and creates nothin
   const missing = join(sandbox.base, "not-there", "deeper");
   const result = sandbox.agw(["install", "work", missing]);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /precisa existir/);
+  assert.match(result.stderr, /must exist/);
   assert.equal(existsSync(join(sandbox.base, "not-there")), false);
   assert.doesNotMatch(sandbox.agw(["list"]).stdout, /not-there/);
 

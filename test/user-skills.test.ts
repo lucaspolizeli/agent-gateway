@@ -102,7 +102,7 @@ test("skills doctor at user level marks what each CLI misses, frontmatter proble
     "  grok   ok, 3 skills discovered",
     "  name       origin                     claude codex grok  problems",
     "  g1         hub global                 ✓      ✗     ✓",
-    `  hours      unmanaged                  ✓      ✗     ✓     "name: hours-log" é diferente do nome da pasta "hours"`,
+    `  hours      unmanaged                  ✓      ✗     ✓     "name: hours-log" does not match the folder name "hours"`,
     "  tdd        managed mattpocock/skills  ✓      ✓     ✓",
     "  grill      managed mattpocock/skills  ✗      ✓     ✗",
     "  reporting  unmanaged                  ✗      ✓     ✗",

@@ -36,7 +36,7 @@ test("a value with all three quote kinds is refused", () => {
 test("a value with a carriage return is refused for that reason, not for its quotes", () => {
   assert.throws(
     () => formatEnvLine("KEY", "line one\r\nline two"),
-    (error: unknown) => error instanceof UserError && /retorno de carro/.test(error.message) && !error.message.includes("ao mesmo tempo"),
+    (error: unknown) => error instanceof UserError && /carriage returns/.test(error.message) && !error.message.includes("together"),
   );
 });
 

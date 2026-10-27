@@ -42,13 +42,13 @@ function realLocation(path: string): string {
 export function unsafeProjectDir(dir: string): string | undefined {
   const absolute = resolve(dir);
   if (realLocation(absolute) === realLocation(homedir())) {
-    return "a pasta home não pode ser um projeto: ela guarda as skills e a configuração dos clientes do usuário";
+    return "the home folder cannot be a project because it holds your user-level skills and client configuration. Choose a repository folder.";
   }
   const userPaths = new Set([...userSkillDirs(), codexConfigPath({ kind: "user" })].map(realLocation));
   const projectPaths = [...PROJECT_SKILL_DIRS.map((sub) => join(absolute, sub)), codexConfigPath({ kind: "project", dir: absolute })];
   const shared = projectPaths.find((path) => userPaths.has(realLocation(path)));
   if (shared !== undefined) {
-    return `${shared} é o mesmo local de uma pasta de skills ou configuração de cliente do usuário`;
+    return `${shared} is the same location as a user-level skill folder or client configuration. Choose another project folder.`;
   }
   return undefined;
 }
@@ -56,7 +56,7 @@ export function unsafeProjectDir(dir: string): string | undefined {
 function requireSafeProjectDir(dir: string) {
   const absolute = resolve(dir);
   if (!existsSync(absolute) || !statSync(absolute).isDirectory()) {
-    throw new UserError("invalid", `${absolute}: a pasta do projeto precisa existir`);
+    throw new UserError("invalid", `${absolute}: the project folder must exist`);
   }
   const problem = unsafeProjectDir(absolute);
   if (problem !== undefined) {

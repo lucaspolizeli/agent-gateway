@@ -470,11 +470,11 @@ test("the home folder, or a folder that is the home through a symlink, cannot be
   for (const dir of [userHome, alias]) {
     const reply = await call("POST", "/api/projects", { body: { dir, profile: "work", transport: "stdio" } });
     assert.equal(reply.status, 400, reply.text);
-    assert.match(reply.text, /pasta home/);
+    assert.match(reply.text, /home folder/);
   }
   const viaCli = agw(["install", "work", userHome]);
   assert.notEqual(viaCli.status, 0);
-  assert.match(viaCli.stderr, /pasta home/);
+  assert.match(viaCli.stderr, /home folder/);
 
   assert.equal(readlinkSync(userLink), hubSkill, "the user-level skill link survives");
   assert.equal(existsSync(join(userHome, ".codex", "config.toml")), false);
@@ -600,41 +600,41 @@ test("symlinks in the skills hub never let the API reach outside it", async () =
   assert.equal(written.content, mine, "the hub's own skills still work");
 });
 
-test("validation errors read as plain pt-BR sentences, without zod's decorations", async () => {
+test("validation errors read as plain sentences, without zod's decorations", async () => {
   const errorOf = async (method: string, path: string, body?: unknown) => {
     const reply = await call(method, path, { body });
     assert.equal(reply.status, 400, `${method} ${path} -> ${reply.status} ${reply.text}`);
     return (reply.json as { error: string }).error;
   };
-  const slugRule = "use letras minúsculas, dígitos e hífens simples, sem hífen no início ou no fim";
+  const slugRule = "use lowercase letters, digits and single hyphens, with no hyphen at the start or end";
 
-  assert.equal(await errorOf("POST", "/api/skills/sets", { name: "Bad Name" }), `Nome: ${slugRule}`);
-  assert.equal(await errorOf("GET", "/api/skills/UPPER/deploy"), `Conjunto: ${slugRule}`);
+  assert.equal(await errorOf("POST", "/api/skills/sets", { name: "Bad Name" }), `Name: ${slugRule}`);
+  assert.equal(await errorOf("GET", "/api/skills/UPPER/deploy"), `Skill set: ${slugRule}`);
   assert.equal(
     await errorOf("GET", "/api/skills/globex/.hidden"),
-    "Nome: use letras, dígitos, '.', '_' e '-', sem começar com '.'",
+    "Name: use letters, digits, '.', '_' and '-', and do not start with '.'",
   );
   assert.equal(
     await errorOf("PUT", "/api/secrets/work/9LIVES", { value: "x" }),
-    "Chave: use letras, dígitos e '_', sem começar com dígito",
+    "Key: use letters, digits and '_', and do not start with a digit",
   );
   assert.equal(
     await errorOf("POST", "/api/projects", { dir: "relative/dir", profile: "work", transport: "stdio" }),
-    "Pasta: precisa ser um caminho absoluto\nPasta: precisa ser uma pasta existente",
+    "Folder: must be an absolute path\nFolder: must be an existing folder",
   );
   assert.equal(
     await errorOf("POST", "/api/projects", { dir: join(dirname(project), "nowhere"), profile: "work", transport: "stdio" }),
-    "Pasta: precisa ser uma pasta existente",
+    "Folder: must be an existing folder",
   );
   assert.equal(
     await errorOf("PUT", "/api/skills/globex/plain", { content: "no frontmatter" }),
-    'O frontmatter do SKILL.md precisa começar com "---" e ter "name: plain"',
+    'The SKILL.md frontmatter must start with "---" and contain "name: plain"',
   );
   assert.equal(
     await errorOf("PUT", "/api/skills/globex/plain", { content: "---\nname: plain\n---\nBody" }),
-    'O frontmatter do SKILL.md precisa de uma "description"',
+    'The SKILL.md frontmatter has no "description". Add one.',
   );
-  assert.match(await errorOf("PUT", "/api/secrets/work/CR", { value: "a\r\nb" }), /retorno de carro/);
+  assert.match(await errorOf("PUT", "/api/secrets/work/CR", { value: "a\r\nb" }), /carriage returns/);
 });
 
 test("MCP over HTTP answers an unknown profile with 404 and the reason, and bad JSON with 400", async () => {

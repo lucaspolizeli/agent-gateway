@@ -16,7 +16,7 @@ function status(name: string, upstreams: ProfileStatus["upstreams"]): ProfileSta
 test("an unreachable service turns the icon red and offers to start it", () => {
   const menu = renderMenu({ kind: "down", logPath: "/l" }, AGW);
   assert.match(menu.split("\n")[0]!, /sfcolor=#FF3B30/);
-  assert.match(menu, /Iniciar serviço \| bash="\/home\/me\/.agw\/bin\/agw" param1="service" param2="start"/);
+  assert.match(menu, /Start service \| bash="\/home\/me\/.agw\/bin\/agw" param1="service" param2="start"/);
 });
 
 test("a failed upstream turns the icon orange and offers a reconnect with a flattened error", () => {
@@ -32,11 +32,11 @@ test("a failed upstream turns the icon orange and offers a reconnect with a flat
     AGW,
   );
   assert.match(menu.split("\n")[0]!, /sfcolor=#FF9500/);
-  assert.match(menu, /agw · 1 de 2 perfis rodando · 1 falhas/);
+  assert.match(menu, /agw · 1 of 2 profiles running · 1 failed/);
   assert.match(menu, /--ado · 44 tools/);
   assert.match(menu, /----boom bad line \| size=11/);
-  assert.match(menu, /----Reconectar \| bash="[^"]+" param1="menubar" param2="reconnect" param3="globex" param4="zep"/);
-  assert.match(menu, /--Iniciar e testar conexões \| bash="[^"]+" param1="menubar" param2="start" param3="acme"/);
+  assert.match(menu, /----Reconnect \| bash="[^"]+" param1="menubar" param2="reconnect" param3="globex" param4="zep"/);
+  assert.match(menu, /--Start and test connections \| bash="[^"]+" param1="menubar" param2="start" param3="acme"/);
 });
 
 test("all running profiles healthy is green, and a missing secret links to its tab", () => {
@@ -45,5 +45,5 @@ test("all running profiles healthy is green, and a missing secret links to its t
 
   const missing = renderMenu({ kind: "up", logPath: "/l", profiles: [{ view: view("initech", ["ZOHO"]) }] }, AGW);
   assert.match(missing.split("\n")[0]!, /sfcolor=#FF9500/);
-  assert.match(missing, /--Segredo faltando: ZOHO .* param1="ui" param2="profiles\/initech\/secrets"/);
+  assert.match(missing, /--Missing secret: ZOHO .* param1="ui" param2="profiles\/initech\/secrets"/);
 });

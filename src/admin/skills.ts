@@ -120,10 +120,10 @@ export function writeSkill(home: string, set: string, name: string, content: str
   requireSet(home, set);
   const fields = parseFrontmatter(content);
   if (fields.name !== name) {
-    throw new UserError("invalid", `O frontmatter do SKILL.md precisa começar com "---" e ter "name: ${name}"`);
+    throw new UserError("invalid", `The SKILL.md frontmatter must start with "---" and contain "name: ${name}"`);
   }
   if (!fields.description) {
-    throw new UserError("invalid", `O frontmatter do SKILL.md precisa de uma "description"`);
+    throw new UserError("invalid", `The SKILL.md frontmatter has no "description". Add one.`);
   }
   const dir = skillDir(home, set, name);
   const file = join(dir, SKILL_FILE);

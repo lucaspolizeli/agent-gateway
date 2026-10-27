@@ -239,7 +239,7 @@ export async function runSkillsDoctor(home: string, dir?: string): Promise<Skill
   if (dir !== undefined) {
     projectDir = resolve(dir);
     if (!existsSync(projectDir) || !statSync(projectDir).isDirectory()) {
-      throw new UserError("invalid", `${projectDir}: a pasta precisa existir`);
+      throw new UserError("invalid", `${projectDir}: the folder must exist`);
     }
     expected = dedupe([...projectSkills(home, projectDir), ...expected]);
   }

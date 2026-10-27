@@ -38,14 +38,14 @@ const MAX_BODY_BYTES = 1024 * 1024;
 
 const noParams = z.object({});
 const noBody = z.unknown();
-const skillName = z.string().regex(SKILL_NAME, "use letras, dígitos, '.', '_' e '-', sem começar com '.'");
+const skillName = z.string().regex(SKILL_NAME, "use letters, digits, '.', '_' and '-', and do not start with '.'");
 const skillParams = z.object({ set: slug, name: skillName });
 const profileParam = z.object({ name: slug });
-const secretParams = z.object({ profile: slug, key: z.string().regex(SECRET_KEY, "use letras, dígitos e '_', sem começar com dígito") });
+const secretParams = z.object({ profile: slug, key: z.string().regex(SECRET_KEY, "use letters, digits and '_', and do not start with a digit") });
 const existingDirectory = z
   .string()
-  .refine(isAbsolute, "precisa ser um caminho absoluto")
-  .refine((dir) => existsSync(dir) && statSync(dir).isDirectory(), "precisa ser uma pasta existente");
+  .refine(isAbsolute, "must be an absolute path")
+  .refine((dir) => existsSync(dir) && statSync(dir).isDirectory(), "must be an existing folder");
 const directory = existingDirectory.superRefine((dir, ctx) => {
   const problem = unsafeProjectDir(dir);
   if (problem !== undefined) {
@@ -82,21 +82,21 @@ function matchSegments(pattern: string[], actual: string[]): Record<string, stri
   return params;
 }
 
-/** Field names as the pt-BR UI calls them; a name not listed is shown as its path. */
+/** Field names as the UI calls them; a name not listed is shown as its path. */
 const FIELD_LABELS: Record<string, string> = {
-  name: "Nome",
-  set: "Conjunto",
-  toSet: "Conjunto de destino",
-  profile: "Perfil",
-  key: "Chave",
-  value: "Valor",
-  dir: "Pasta",
-  path: "Caminho",
-  transport: "Transporte",
-  content: "Conteúdo",
-  server: "Servidor",
-  from: "Origem",
-  to: "Destino",
+  name: "Name",
+  set: "Skill set",
+  toSet: "Target skill set",
+  profile: "Profile",
+  key: "Key",
+  value: "Value",
+  dir: "Folder",
+  path: "Path",
+  transport: "Transport",
+  content: "Content",
+  server: "Server",
+  from: "Source",
+  to: "Target",
 };
 
 function toApplyResult(report: ProjectApplyResult): ProjectApplyResult {
