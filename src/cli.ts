@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { adminTokenPath, readAdminToken } from "./admin/token.ts";
@@ -18,7 +18,8 @@ import {
   uninstallProject,
   unsafeProjectDir,
 } from "./project.ts";
-import { installService, serviceLogPath, uninstallService } from "./service.ts";
+import { installService, restartService, serviceLogPath, uninstallService } from "./service.ts";
+import { loadMenuState, renderMenu, runMenuAction } from "./menubar.ts";
 import type { LinkReport } from "./skills.ts";
 
 const USAGE = `agw - one MCP gateway and skill hub per company
@@ -31,8 +32,9 @@ const USAGE = `agw - one MCP gateway and skill hub per company
   agw list                               Show profiles and installed projects
   agw stdio <profile>                    Run the gateway over stdio (what the clients launch)
   agw serve [--port N]                   Run the gateway over HTTP at /mcp/<profile>, admin UI at /ui/
-  agw ui                                 Open the admin UI of the running agw serve
-  agw service install|uninstall          Keep agw serve running at login through launchd (macOS)
+  agw ui [route]                         Open the admin UI of the running agw serve (e.g. profiles/globex)
+  agw service install|start|uninstall    Keep agw serve running at login through launchd (macOS)
+  agw menubar                            Print the SwiftBar menu (see swiftbar/)
 
 Home: ${"$"}AGW_HOME, else this repository. Port: --port, ${"$"}AGW_PORT, else ${DEFAULT_PORT}.`;
 
@@ -175,7 +177,14 @@ const commands: Record<string, Command> = {
       report.failed.length,
     );
   },
-  ui: async () => {
+  menubar: async (rest) => {
+    if (rest[0] !== undefined) {
+      await runMenuAction(home, port, rest[0], rest.slice(1));
+      return;
+    }
+    process.stdout.write(renderMenu(await loadMenuState(home, port, serviceLogPath(home)), join(home, "bin", "agw")));
+  },
+  ui: async (rest) => {
     const url = `http://127.0.0.1:${port}/ui/`;
     const running = await fetch(url, { signal: AbortSignal.timeout(1000) }).then(
       () => true,
@@ -194,7 +203,11 @@ const commands: Record<string, Command> = {
     if (process.platform === "darwin") {
       opener = "open";
     }
-    spawn(opener, [`${url}#t=${token}`], { detached: true, stdio: "ignore" }).unref();
+    let fragment = `t=${token}`;
+    if (rest[0] !== undefined) {
+      fragment = `${fragment}&/${rest[0]}`;
+    }
+    spawn(opener, [`${url}#${fragment}`], { detached: true, stdio: "ignore" }).unref();
     console.log(`Opened ${url}`);
   },
   service: (rest) => {
@@ -202,6 +215,9 @@ const commands: Record<string, Command> = {
     if (action === "install") {
       const path = installService(home, port);
       console.log(`Loaded ${path}; agw serve now runs at login, logs in ${serviceLogPath(home)}`);
+    } else if (action === "start") {
+      restartService();
+      console.log("Restarted agw serve");
     } else if (action === "uninstall") {
       console.log(`Unloaded and removed ${uninstallService()}`);
     } else {

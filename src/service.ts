@@ -91,6 +91,11 @@ export function installService(home: string, port: number): string {
   return path;
 }
 
+/** Restarts the loaded agent, or starts it if it exited. */
+export function restartService(): void {
+  execFileSync("launchctl", ["kickstart", "-k", `${domain()}/${SERVICE_LABEL}`], { stdio: ["ignore", "pipe", "pipe"] });
+}
+
 export function uninstallService(): string {
   const path = launchAgentPath();
   bootout();
