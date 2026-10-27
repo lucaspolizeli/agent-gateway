@@ -83,7 +83,7 @@ Your company repositories are not your personal tooling, so `agw` follows three 
 
 A skill can come from three places, and `agw` treats each one differently:
 
-- **Hub skills** live in `skills/<set>/`. You edit them in the UI, and `agw` links them where your profiles say. Commit them to version them.
+- **Hub skills** live in `skills/<set>/`. You edit them in the UI, and `agw` links them where your profiles say. `.gitignore` keeps them out of this repository. To version them, make `skills/` a Git repository of its own.
 - **Managed skills** were installed by the [`skills` CLI](https://github.com/vercel-labs/skills) into `~/.agents/skills` and are listed in `~/.agents/.skill-lock.json`. That CLI updates them in place, so `agw` never moves them. If it did, the next `skills update` would break the link.
 - **Unmanaged skills** are real folders in a user skill folder that nothing manages. `agw skills import` moves them into a hub set.
 

@@ -18,7 +18,7 @@ To understand the design, read [How agent-gateway works](docs/how-it-works.md). 
 
 ## Install agent-gateway
 
-The checkout is also the gateway's home: it holds your `gateway.json`, secrets, skills, and runtime state. These files are listed in `.gitignore`, except skills. The examples below use `~/.agw`.
+The checkout is also the gateway's home: it holds your `gateway.json`, secrets, skills, and runtime state. `.gitignore` lists all four, so your own data never enters this repository. The examples below use `~/.agw`.
 
 1. Clone the repository:
 

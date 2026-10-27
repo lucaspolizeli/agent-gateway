@@ -75,7 +75,7 @@ Any string field can contain `${NAME}`. `agw` replaces it with the value from th
 | `gateway.json` | no | Servers and profiles. |
 | `gateway.example.json` | yes | A starting point for `gateway.json`. |
 | `secrets/<profile>.env` | no | `KEY=value` lines, mode 0600. |
-| `skills/<set>/<skill>/SKILL.md` | yes | Hub skills. |
+| `skills/<set>/<skill>/SKILL.md` | no | Hub skills. |
 | `state/projects.json` | no | Installed repositories and the user-level install. |
 | `state/admin-token` | no | Token for the admin API, mode 0600. |
 | `state/serve.log` | no | Log of the launchd agent. |
