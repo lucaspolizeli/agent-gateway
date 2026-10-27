@@ -136,8 +136,44 @@ export type SkillDocument = SkillSummary & {
   files: string[];
 };
 
-/** A real folder in a user-level skill dir that the hub does not own yet. */
+/**
+ * A real folder in a user-level skill dir that the hub does not own yet. Folders the `skills` CLI
+ * installed (listed in `~/.agents/.skill-lock.json`) are never importable: that CLI updates them in place.
+ */
 export type ImportableSkill = { name: string; path: string; description: string };
+
+export type CliName = "claude" | "codex" | "grok";
+
+/** Where a skill a CLI can see comes from. */
+export type SkillOrigin =
+  | { kind: "hub"; set: string }
+  /** Installed and updated by the `skills` CLI; the hub only makes sure every CLI can see it. */
+  | { kind: "managed"; source: string }
+  /** A real folder nothing manages; importable into the hub. */
+  | { kind: "unmanaged"; path: string };
+
+/**
+ * One row per skill name expected at the doctor's scope: the user level, or one project directory.
+ * `problems` lists frontmatter that a CLI would reject or skip (name not matching the folder, name over 64
+ * characters or outside [a-z0-9-], missing description or one over 1024 characters).
+ */
+export type SkillDoctorRow = {
+  name: string;
+  origin: SkillOrigin;
+  visible: Record<CliName, boolean>;
+  problems: string[];
+};
+
+export type CliProbe = { ok: true; count: number } | { ok: false; error: string };
+
+export type SkillsDoctorReport = {
+  /** Absolute project directory, or null for the user level (run from $HOME). */
+  dir: string | null;
+  probes: Record<CliName, CliProbe>;
+  rows: SkillDoctorRow[];
+  /** Symlinks in a user or project skill dir whose target is gone. */
+  brokenLinks: string[];
+};
 
 // GET    /api/skills                                   -> SkillSet[]
 // POST   /api/skills/sets          body { name }       -> SkillSet[]
@@ -147,6 +183,9 @@ export type ImportableSkill = { name: string; path: string; description: string 
 // DELETE /api/skills/:set/:name                        -> SkillSet[]
 // GET    /api/skills/importable                        -> ImportableSkill[]
 // POST   /api/skills/import        body { path, toSet } -> SkillSet[]   (moves the folder into the hub, then re-links)
+// GET    /api/skills/user                              -> Array<{ name: string; description: string; origin: SkillOrigin }>
+//                                                         (every user-level skill, deduped by name, hub first)
+// POST   /api/skills/doctor        body { dir?: string } -> SkillsDoctorReport   (asks each CLI what it discovers; takes seconds)
 
 // ---------- projects ----------
 
