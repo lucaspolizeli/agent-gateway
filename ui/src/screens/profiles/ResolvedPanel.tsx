@@ -1,56 +1,43 @@
 import type { ResolvedProfileView } from "../../contract.ts";
+import { Badge } from "../../components/Badge.tsx";
+import { hrefFor } from "../../router.ts";
 
 export function ResolvedPanel({ view }: { view: ResolvedProfileView }) {
   const servers = Object.entries(view.servers).sort(([a], [b]) => a.localeCompare(b));
   return (
-    <section className="panel">
-      <h3>Visão resolvida</h3>
-      <div className="chain">
-        {view.chain.map((profile, index) => (
-          <span key={profile} className="chain-step">
-            {index > 0 && <span className="muted"> → </span>}
-            <span className="mono">{profile}</span>
-          </span>
-        ))}
-      </div>
-      {view.missingSecrets.length > 0 && (
-        <div className="warn-box" role="alert">
-          <b>Segredos faltando:</b>{" "}
-          {view.missingSecrets.map((key) => (
-            <code key={key} className="secret-chip">
-              {key}
-            </code>
-          ))}
-        </div>
-      )}
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Servidor</th>
-            <th>Vem de</th>
-          </tr>
-        </thead>
-        <tbody>
-          {servers.length === 0 && (
-            <tr>
-              <td colSpan={2} className="muted">
-                Nenhum servidor.
-              </td>
-            </tr>
-          )}
+    <div className="resolved">
+      <div className="resolved-group">
+        <div className="field-label">Servidores</div>
+        {servers.length === 0 && <span className="muted">Nenhum.</span>}
+        <ul className="resolved-list">
           {servers.map(([server, from]) => (
-            <tr key={server}>
-              <td className="mono">{server}</td>
-              <td className="mono">{from}</td>
-            </tr>
+            <li key={server}>
+              <a className="mono" href={hrefFor({ screen: "servers", server })}>
+                {server}
+              </a>
+              <Origin from={from} self={view.name} />
+            </li>
           ))}
-        </tbody>
-      </table>
-      <div className="small">
-        <span className="muted">Skills: </span>
-        <span className="mono">{view.skillSets.join(", ")}</span>
-        {view.skillSets.length === 0 && <span className="muted">nenhuma</span>}
+        </ul>
       </div>
-    </section>
+      <div className="resolved-group">
+        <div className="field-label">Conjuntos de skills</div>
+        {view.skillSets.length === 0 && <span className="muted">Nenhum.</span>}
+        <ul className="resolved-list">
+          {view.skillSets.map((set) => (
+            <li key={set}>
+              <a href={hrefFor({ screen: "skills", set })}>{set}</a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
+}
+
+function Origin({ from, self }: { from: string; self: string }) {
+  if (from === self) {
+    return <Badge tone="accent">próprio</Badge>;
+  }
+  return <Badge tone="neutral">de {from}</Badge>;
 }

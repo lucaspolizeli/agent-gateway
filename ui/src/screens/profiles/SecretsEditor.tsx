@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Badge } from "../../components/Badge.tsx";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { QueryState } from "../../components/QueryState.tsx";
@@ -7,88 +8,123 @@ import { useDeleteSecret, useSecrets, useSetSecret } from "../../state/secrets.t
 /** Write-only: values are typed into password inputs and never read back from the API. */
 export function SecretsEditor({ profile, missing }: { profile: string; missing: string[] }) {
   const secrets = useSecrets();
-  const [newKey, setNewKey] = useState("");
   return (
-    <section className="panel">
-      <h3>Segredos de {profile}</h3>
-      <p className="muted small">Os valores nunca são exibidos. Só é possível definir ou remover.</p>
-      <QueryState query={secrets}>
-        {(views) => {
-          const keys = [...(views.find((view) => view.profile === profile)?.keys ?? [])].sort();
-          return (
-            <div className="secrets">
-              {keys.length === 0 && <p className="muted">Nenhum segredo neste perfil.</p>}
-              {keys.map((key) => (
-                <SecretRow key={key} profile={profile} secretKey={key} />
-              ))}
-              <NewSecret profile={profile} secretKey={newKey} onKeyChange={setNewKey} existing={keys} />
-              {missing.length > 0 && (
-                <div className="row wrap small">
-                  <span className="muted">Faltando na cadeia:</span>
-                  {missing.map((key) => (
-                    <button key={key} type="button" className="secret-chip warn" onClick={() => setNewKey(key)}>
-                      {key}
-                    </button>
+    <div className="tab-body">
+      <section className="section">
+        <h3 className="section-title">Segredos de {profile}</h3>
+        <p className="section-hint">
+          Preenchem as referências <code>{"${NOME}"}</code> dos servidores. Os valores nunca são exibidos: só dá para
+          definir, substituir ou remover.
+        </p>
+        <QueryState query={secrets}>
+          {(views) => {
+            const keys = [...(views.find((view) => view.profile === profile)?.keys ?? [])].sort();
+            const absent = missing.filter((key) => !keys.includes(key)).sort();
+            return (
+              <>
+                <ul className="secret-list">
+                  {absent.map((key) => (
+                    <SecretRow key={`missing:${key}`} profile={profile} secretKey={key} missing />
                   ))}
-                </div>
-              )}
-            </div>
-          );
-        }}
-      </QueryState>
-    </section>
+                  {keys.map((key) => (
+                    <SecretRow key={key} profile={profile} secretKey={key} missing={false} />
+                  ))}
+                  {keys.length === 0 && absent.length === 0 && (
+                    <li className="secret-empty muted">Nenhum segredo neste perfil.</li>
+                  )}
+                </ul>
+                <NewSecret profile={profile} existing={keys} />
+              </>
+            );
+          }}
+        </QueryState>
+      </section>
+    </div>
   );
 }
 
-function SecretRow({ profile, secretKey }: { profile: string; secretKey: string }) {
+type RowProps = { profile: string; secretKey: string; missing: boolean };
+
+function SecretRow({ profile, secretKey, missing }: RowProps) {
+  const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
   const set = useSetSecret();
   const remove = useDeleteSecret();
+  let editLabel = "Substituir";
+  if (missing) {
+    editLabel = "Definir";
+  }
   return (
-    <form
-      className="secret-row"
-      onSubmit={(event) => {
-        event.preventDefault();
-        set.mutate({ profile, key: secretKey, value }, { onSuccess: () => setValue("") });
-      }}
-    >
+    <li className="secret-row" data-missing={missing}>
       <span className="mono secret-key">{secretKey}</span>
-      <input
-        type="password"
-        autoComplete="new-password"
-        placeholder="novo valor"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-      />
-      <button type="submit" disabled={value === "" || set.isPending}>
-        Atualizar
-      </button>
-      <ConfirmButton
-        label="Remover"
-        question={`Remover ${secretKey}?`}
-        disabled={remove.isPending}
-        onConfirm={() => remove.mutate({ profile, key: secretKey })}
-      />
-      <MutationStatus mutation={set} success="Atualizado." />
+      {missing && <Badge tone="warn">faltando</Badge>}
+      {!missing && <Badge tone="ok">definido</Badge>}
+      <span className="spacer" />
+      <MutationStatus mutation={set} success="Salvo." />
       <MutationStatus mutation={remove} success="Removido." />
-    </form>
+      {editing && (
+        <form
+          className="row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            set.mutate(
+              { profile, key: secretKey, value },
+              {
+                onSuccess: () => {
+                  setValue("");
+                  setEditing(false);
+                },
+              },
+            );
+          }}
+        >
+          <input
+            type="password"
+            autoComplete="new-password"
+            autoFocus
+            aria-label={`Valor de ${secretKey}`}
+            placeholder="valor"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setEditing(false);
+              }
+            }}
+          />
+          <button type="submit" className="primary" disabled={value === "" || set.isPending}>
+            Salvar
+          </button>
+          <button type="button" onClick={() => setEditing(false)}>
+            Cancelar
+          </button>
+        </form>
+      )}
+      {!editing && (
+        <button type="button" onClick={() => setEditing(true)}>
+          {editLabel}
+        </button>
+      )}
+      {!editing && !missing && (
+        <ConfirmButton
+          label="Remover"
+          question={`Remover ${secretKey}?`}
+          disabled={remove.isPending}
+          onConfirm={() => remove.mutate({ profile, key: secretKey })}
+        />
+      )}
+    </li>
   );
 }
 
-type NewSecretProps = {
-  profile: string;
-  secretKey: string;
-  onKeyChange: (key: string) => void;
-  existing: string[];
-};
-
-function NewSecret({ profile, secretKey, onKeyChange, existing }: NewSecretProps) {
+function NewSecret({ profile, existing }: { profile: string; existing: string[] }) {
+  const [secretKey, setSecretKey] = useState("");
   const [value, setValue] = useState("");
   const set = useSetSecret();
   const key = secretKey.trim();
   return (
     <form
-      className="secret-row new"
+      className="new-secret"
       onSubmit={(event) => {
         event.preventDefault();
         set.mutate(
@@ -96,29 +132,35 @@ function NewSecret({ profile, secretKey, onKeyChange, existing }: NewSecretProps
           {
             onSuccess: () => {
               setValue("");
-              onKeyChange("");
+              setSecretKey("");
             },
           },
         );
       }}
     >
-      <input
-        className="mono secret-key"
-        placeholder="CHAVE"
-        value={secretKey}
-        onChange={(event) => onKeyChange(event.target.value)}
-      />
-      <input
-        type="password"
-        autoComplete="new-password"
-        placeholder="valor"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-      />
-      <button type="submit" className="primary" disabled={key === "" || value === "" || set.isPending}>
-        Adicionar
-      </button>
-      {existing.includes(key) && <span className="muted small">Substitui o valor atual.</span>}
+      <span className="field-label">Novo segredo</span>
+      <div className="row">
+        <input
+          className="mono new-secret-key"
+          aria-label="Chave do novo segredo"
+          placeholder="CHAVE"
+          value={secretKey}
+          onChange={(event) => setSecretKey(event.target.value)}
+        />
+        <input
+          type="password"
+          className="grow"
+          autoComplete="new-password"
+          aria-label="Valor do novo segredo"
+          placeholder="valor"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+        <button type="submit" disabled={key === "" || value === "" || set.isPending}>
+          Adicionar
+        </button>
+      </div>
+      {existing.includes(key) && <span className="muted small">Substitui o valor atual de {key}.</span>}
       <MutationStatus mutation={set} success="Segredo salvo." />
     </form>
   );

@@ -19,7 +19,7 @@ function renderScreen(route: Route): ReactNode {
     case "servers":
       return <ServersScreen selected={route.server} />;
     case "profiles":
-      return <ProfilesScreen selected={route.profile} />;
+      return <ProfilesScreen selected={route.profile} tab={route.tab} />;
     case "skills":
       return <SkillsScreen set={route.set} skill={route.skill} />;
     case "projects":

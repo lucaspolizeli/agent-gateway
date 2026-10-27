@@ -1,7 +1,9 @@
 import { useState } from "react";
 import type { ToolInfo } from "../../contract.ts";
+import { Badge } from "../../components/Badge.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { QueryState } from "../../components/QueryState.tsx";
+import { Switch } from "../../components/Switch.tsx";
 import { groupByServer, toolVisibility } from "../../domain/profiles.ts";
 import { useConfigEdit } from "../../state/config.ts";
 import { useProfileStatus, useStartProfile } from "../../state/profiles.ts";
@@ -13,74 +15,112 @@ export function ToolsPanel({ profile }: { profile: string }) {
   const [filter, setFilter] = useState("");
 
   return (
-    <section className="panel">
-      <header className="row">
-        <h3>Tools</h3>
-        <span className="spacer" />
-        <input
-          className="filter"
-          placeholder="filtrar"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        />
-      </header>
-      <MutationStatus mutation={toggle} success="Visibilidade atualizada." />
+    <div className="tab-body">
       <QueryState query={status}>
         {(data) => {
           if (!data.running) {
             return (
-              <div className="row">
-                <span className="muted">Gateway parado: inicie para listar as tools.</span>
-                <button type="button" disabled={start.isPending} onClick={() => start.mutate(profile)}>
-                  Iniciar
-                </button>
-                <MutationStatus mutation={start} success="Gateway iniciado." />
+              <div className="section stopped-tools">
+                <p className="muted">O gateway deste perfil está parado. Inicie para listar as tools.</p>
+                <div className="row">
+                  <button type="button" className="primary" disabled={start.isPending} onClick={() => start.mutate(profile)}>
+                    Iniciar gateway
+                  </button>
+                  <MutationStatus mutation={start} success="Gateway iniciado." />
+                </div>
               </div>
             );
           }
+          const visible = data.tools.filter((tool) => !tool.hidden).length;
           const needle = filter.trim().toLowerCase();
-          const tools = data.tools.filter((tool) => tool.name.toLowerCase().includes(needle));
           return (
-            <div>
-              {tools.length === 0 && <p className="muted">Nenhuma tool.</p>}
-              {groupByServer(tools).map(([server, group]) => (
-                <div key={server} className="tool-group">
-                  <div className="tool-group-title mono">{server}</div>
-                  {group.map((tool) => (
-                    <ToolRow
-                      key={tool.name}
-                      tool={tool}
-                      profile={profile}
-                      busy={toggle.isPending}
-                      onToggle={(hidden) => toggle.mutate({ op: "setToolHidden", profile, tool: tool.name, hidden })}
-                    />
-                  ))}
-                </div>
+            <>
+              <div className="tools-toolbar">
+                <span className="secondary">
+                  <b>{visible}</b> de {data.tools.length} tools visíveis para os clientes
+                </span>
+                <MutationStatus mutation={toggle} success="Visibilidade atualizada." />
+                <span className="spacer" />
+                <input
+                  type="search"
+                  className="filter"
+                  aria-label="Filtrar tools"
+                  placeholder="Filtrar tools"
+                  value={filter}
+                  onChange={(event) => setFilter(event.target.value)}
+                />
+              </div>
+              {data.tools.length === 0 && <p className="empty">Nenhuma tool exposta pelos servidores.</p>}
+              {groupByServer(data.tools).map(([server, group]) => (
+                <ToolGroup
+                  key={server}
+                  server={server}
+                  tools={group}
+                  needle={needle}
+                  profile={profile}
+                  busy={toggle.isPending}
+                  onToggle={(tool, hidden) => toggle.mutate({ op: "setToolHidden", profile, tool, hidden })}
+                />
               ))}
-            </div>
+            </>
           );
         }}
       </QueryState>
+    </div>
+  );
+}
+
+type GroupProps = {
+  server: string;
+  tools: ToolInfo[];
+  needle: string;
+  profile: string;
+  busy: boolean;
+  onToggle: (tool: string, hidden: boolean) => void;
+};
+
+function ToolGroup({ server, tools, needle, profile, busy, onToggle }: GroupProps) {
+  const shown = tools.filter((tool) => tool.name.toLowerCase().includes(needle));
+  if (shown.length === 0) {
+    return null;
+  }
+  const visible = tools.filter((tool) => !tool.hidden).length;
+  return (
+    <section className="tool-group">
+      <header className="tool-group-header">
+        <span className="mono">{server}</span>
+        <span className="muted small">
+          {visible} de {tools.length} visíveis
+        </span>
+      </header>
+      <ul className="tool-rows">
+        {shown.map((tool) => (
+          <ToolRow key={tool.name} tool={tool} profile={profile} busy={busy} onToggle={onToggle} />
+        ))}
+      </ul>
     </section>
   );
 }
 
-type RowProps = { tool: ToolInfo; profile: string; busy: boolean; onToggle: (hidden: boolean) => void };
+type RowProps = { tool: ToolInfo; profile: string; busy: boolean; onToggle: (tool: string, hidden: boolean) => void };
 
 function ToolRow({ tool, profile, busy, onToggle }: RowProps) {
   const visibility = toolVisibility(tool, profile);
   return (
-    <label className="tool-row" data-hidden={visibility.kind !== "visible"} title={tool.description}>
-      <input
-        type="checkbox"
+    <li className="tool-row" data-hidden={visibility.kind !== "visible"}>
+      <Switch
         checked={visibility.kind === "visible"}
+        label={`${tool.name} visível para os clientes`}
+        onText="visível"
+        offText="oculta"
         disabled={busy || visibility.kind === "hiddenByAncestor"}
-        onChange={(event) => onToggle(!event.target.checked)}
+        onChange={(checked) => onToggle(tool.name, !checked)}
       />
-      <span className="mono">{tool.name}</span>
-      {visibility.kind === "hiddenByAncestor" && <span className="muted small">oculta por {visibility.profile}</span>}
-      {visibility.kind === "hiddenHere" && <span className="muted small">oculta</span>}
-      {tool.description !== undefined && <span className="muted small truncate">{tool.description}</span>}
-    </label>
+      <span className="mono tool-name">{tool.name}</span>
+      {visibility.kind === "hiddenByAncestor" && <Badge tone="neutral">oculta por {visibility.profile}</Badge>}
+      <span className="muted truncate tool-description" title={tool.description}>
+        {tool.description}
+      </span>
+    </li>
   );
 }
