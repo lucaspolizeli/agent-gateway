@@ -1,10 +1,25 @@
+import { ArrowRightLeftIcon, SaveIcon, Trash2Icon, Undo2Icon } from "lucide-react";
 import { useState, type KeyboardEvent } from "react";
 import type { SkillDocument } from "../../contract.ts";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldError } from "@/components/ui/field";
+import { Kbd } from "@/components/ui/kbd";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
+import { ConfirmAction } from "../../components/ConfirmAction.tsx";
+import { withFeedback } from "../../components/feedback.ts";
 import { focusFirstField } from "../../components/focusFirstField.ts";
-import { ConfirmButton } from "../../components/ConfirmButton.tsx";
-import { ChevronIcon } from "../../components/Icons.tsx";
-import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { QueryState } from "../../components/QueryState.tsx";
 import { StaleNotice } from "../../components/StaleNotice.tsx";
 import { hrefFor, navigate } from "../../router.ts";
@@ -51,13 +66,12 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
 
   function submit() {
     if (dirty && !save.isPending) {
-      save.mutate({ set: doc.set, name: doc.name, content });
+      void withFeedback(save.mutateAsync({ set: doc.set, name: doc.name, content }), "SKILL.md salvo.");
     }
   }
 
   return (
     <form
-      className="detail skill-editor"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
@@ -69,60 +83,71 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
         }
       }}
     >
-      <header className="detail-header editor-toolbar">
-        <div className="detail-title">
-          <nav className="breadcrumb" aria-label="Local da skill">
-            <a href={hrefFor({ screen: "skills", set: doc.set })}>{doc.set}</a>
-            <ChevronIcon />
-            <span aria-current="page">SKILL.md</span>
-          </nav>
-          <h2>{doc.name}</h2>
-        </div>
-        <MoveControl doc={doc} setNames={setNames} />
-        <DeleteControl doc={doc} />
-      </header>
-      {stale && <StaleNotice message="A skill mudou fora daqui. Recarregar?" onReload={reload} />}
-      <textarea
-        className="mono skill-textarea"
-        aria-label={`Conteúdo de ${doc.name}/SKILL.md`}
-        spellCheck={false}
-        value={content}
-        onChange={(event) => setContent(event.target.value)}
-      />
-      <ActionBar
-        className="editor-footer"
-        messages={
-          <>
-            <DirtyIndicator dirty={dirty} />
-            <MutationStatus mutation={save} />
-            <span className="muted small files-line">
-              {doc.files.length === 0 && "Sem outros arquivos"}
-              {doc.files.length > 0 && (
-                <>
-                  Outros arquivos: <span className="mono">{doc.files.join(", ")}</span>
-                </>
-              )}
-            </span>
-          </>
-        }
-      >
-        {dirty && (
-          <button
-            type="button"
-            onClick={(event) => {
-              const form = event.currentTarget.form;
-              reload();
-              focusFirstField(form);
+      <Card className="overflow-visible">
+        <CardHeader>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href={hrefFor({ screen: "skills", view: "hub", set: doc.set })}>{doc.set}</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>SKILL.md</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <CardTitle className="text-lg">{doc.name}</CardTitle>
+          <CardAction className="flex flex-wrap justify-end gap-2">
+            <MoveControl doc={doc} setNames={setNames} />
+            <DeleteControl doc={doc} />
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {stale && <StaleNotice message="O SKILL.md foi salvo em outro lugar enquanto você editava. Recarregar troca suas edições pela versão salva." onReload={reload} />}
+          <Textarea
+            className="min-h-[max(55svh,22rem)] resize-y font-mono text-[13px] leading-relaxed"
+            aria-label={`Conteúdo de ${doc.name}/SKILL.md`}
+            spellCheck={false}
+            value={content}
+            onChange={(event) => {
+              setContent(event.target.value);
+              save.reset();
             }}
-          >
-            Descartar
-          </button>
-        )}
-        <button type="submit" className="primary" disabled={!dirty || save.isPending}>
-          Salvar
-          <kbd className="kbd">{saveShortcut}</kbd>
-        </button>
-      </ActionBar>
+          />
+          {save.error !== null && <FieldError className="whitespace-pre-wrap">{save.error.message}</FieldError>}
+          <p className="text-xs text-muted-foreground">
+            {doc.files.length === 0 && "Sem outros arquivos na pasta."}
+            {doc.files.length > 0 && (
+              <>
+                Outros arquivos: <span className="font-mono">{doc.files.join(", ")}</span>
+              </>
+            )}
+          </p>
+        </CardContent>
+        <ActionBar status={<DirtyIndicator dirty={dirty} />}>
+          {dirty && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={(event) => {
+                const form = event.currentTarget.form;
+                reload();
+                save.reset();
+                focusFirstField(form);
+              }}
+            >
+              <Undo2Icon />
+              Descartar
+            </Button>
+          )}
+          <Button type="submit" disabled={!dirty || save.isPending}>
+            {save.isPending && <Spinner />}
+            {!save.isPending && <SaveIcon />}
+            Salvar
+            <Kbd className="bg-primary-foreground/15 text-primary-foreground">{saveShortcut}</Kbd>
+          </Button>
+        </ActionBar>
+      </Card>
     </form>
   );
 }
@@ -130,51 +155,63 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
 function MoveControl({ doc, setNames }: { doc: SkillDocument; setNames: string[] }) {
   const targets = setNames.filter((set) => set !== doc.set);
   const [toSet, setToSet] = useState(targets[0] ?? "");
-  const move = useMoveSkill((vars) => navigate({ screen: "skills", set: vars.toSet, skill: vars.name }, { confirmed: true }));
+  const move = useMoveSkill(
+    (vars) => void navigate({ screen: "skills", view: "hub", set: vars.toSet, skill: vars.name }, { confirmed: true }),
+  );
   if (targets.length === 0) {
     return null;
   }
   return (
-    <span className="row">
-      <MutationStatus mutation={move} success="Movida." />
-      <span className="muted small">Mover para</span>
-      <select value={toSet} aria-label="Mover para o conjunto" onChange={(event) => setToSet(event.target.value)}>
-        {targets.map((set) => (
-          <option key={set} value={set}>
-            {set}
-          </option>
-        ))}
-      </select>
-      <button
+    <div className="flex items-center gap-1">
+      <Select value={toSet} onValueChange={setToSet}>
+        <SelectTrigger className="w-36" aria-label="Mover para o conjunto">
+          <SelectValue placeholder="Conjunto" />
+        </SelectTrigger>
+        <SelectContent>
+          {targets.map((set) => (
+            <SelectItem key={set} value={set}>
+              {set}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
         type="button"
+        variant="outline"
         disabled={toSet === "" || move.isPending}
-        onClick={() => {
-          if (confirmLeave()) {
-            move.mutate({ set: doc.set, name: doc.name, toSet });
+        onClick={async () => {
+          if (await confirmLeave()) {
+            await withFeedback(move.mutateAsync({ set: doc.set, name: doc.name, toSet }), `${doc.name} movida para ${toSet}.`);
           }
         }}
       >
+        {move.isPending && <Spinner />}
+        {!move.isPending && <ArrowRightLeftIcon />}
         Mover
-      </button>
-    </span>
+      </Button>
+    </div>
   );
 }
 
 function DeleteControl({ doc }: { doc: SkillDocument }) {
-  const remove = useDeleteSkill((vars) => navigate({ screen: "skills", set: vars.set }, { confirmed: true }));
+  const remove = useDeleteSkill((vars) => void navigate({ screen: "skills", view: "hub", set: vars.set }, { confirmed: true }));
   return (
-    <>
-      <ConfirmButton
-        label="Excluir"
-        question={`Excluir ${doc.name} e todos os arquivos?`}
-        disabled={remove.isPending}
-        onConfirm={() => {
-          if (confirmLeave()) {
-            remove.mutate({ set: doc.set, name: doc.name });
-          }
-        }}
-      />
-      <MutationStatus mutation={remove} success="Excluída." />
-    </>
+    <ConfirmAction
+      label={
+        <>
+          <Trash2Icon />
+          Excluir
+        </>
+      }
+      title={`Excluir ${doc.name}?`}
+      description="Apaga a pasta da skill com todos os arquivos. Não dá para desfazer."
+      confirmLabel="Excluir"
+      disabled={remove.isPending}
+      onConfirm={async () => {
+        if (await confirmLeave()) {
+          await withFeedback(remove.mutateAsync({ set: doc.set, name: doc.name }), `${doc.name} excluída.`);
+        }
+      }}
+    />
   );
 }
