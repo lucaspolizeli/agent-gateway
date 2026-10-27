@@ -85,3 +85,39 @@
 .chip-fail b {
   color: var(--danger);
 }
+
+.bucket {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.panel-header + .bucket {
+  border-top: none;
+}
+.bucket-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.bucket-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bucket-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-1) 0;
+}
+.bucket-dir {
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+.bucket-reason {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}

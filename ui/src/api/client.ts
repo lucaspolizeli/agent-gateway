@@ -12,6 +12,7 @@ import type {
   ServerTestResult,
   SkillDocument,
   SkillSet,
+  SyncResult,
   Transport,
 } from "../contract.ts";
 import { adminToken } from "./token.ts";
@@ -34,12 +35,22 @@ function isApiError(value: unknown): value is ApiError {
   return typeof value === "object" && value !== null && typeof (value as ApiError).error === "string";
 }
 
+/** The API formats validation errors with `z.prettifyError`: `✖ message` lines, each followed by `→ at path`. */
+function plainMessage(message: string): string {
+  return message
+    .split("\n")
+    .filter((line) => !/^\s*→ at /.test(line))
+    .map((line) => line.replace(/^✖\s*/, ""))
+    .join("\n")
+    .trim();
+}
+
 async function errorFrom(response: Response): Promise<ApiRequestError> {
   const text = await response.text();
   try {
     const parsed: unknown = JSON.parse(text);
     if (isApiError(parsed)) {
-      return new ApiRequestError(response.status, parsed.error);
+      return new ApiRequestError(response.status, plainMessage(parsed.error));
     }
   } catch {
     // Not JSON: the dev proxy or something other than agw answered.
@@ -142,4 +153,4 @@ export const installProject = (body: { dir: string; profile: string; transport: 
 
 export const uninstallProject = (dir: string) => request<ProjectApplyResult>("DELETE", "/projects", { dir });
 
-export const syncAll = () => request<ProjectApplyResult[]>("POST", "/sync");
+export const syncAll = () => request<SyncResult>("POST", "/sync");

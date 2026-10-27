@@ -1,12 +1,15 @@
 import { useState, type ReactNode } from "react";
 import type { ProjectApplyResult, ProjectView, Transport } from "../contract.ts";
-import { ApplyResultView } from "../components/ApplyResultView.tsx";
+import { ApplyOutcomeView } from "../components/ApplyOutcomeView.tsx";
 import { Badge } from "../components/Badge.tsx";
 import { ConfirmButton } from "../components/ConfirmButton.tsx";
-import { MutationStatus } from "../components/MutationStatus.tsx";
+import { FieldHint } from "../components/FieldHint.tsx";
+import { MutationStatus, type Verdict } from "../components/MutationStatus.tsx";
 import { PageHeader } from "../components/PageHeader.tsx";
 import { QueryState } from "../components/QueryState.tsx";
-import { basename, parentDir } from "../domain/format.ts";
+import { applyProblem, isEmptyOutcome, outcomeOfResult, type ApplyOutcome } from "../domain/applyResult.ts";
+import { basename, parentDir, plural } from "../domain/format.ts";
+import { hintFor, projectDirProblem } from "../domain/validation.ts";
 import { hrefFor } from "../router.ts";
 import { useConfig } from "../state/config.ts";
 import { useInstallProject, useProjects, useSyncAll, useUninstallProject } from "../state/projects.ts";
@@ -17,7 +20,21 @@ const transportHints: Record<Transport, string> = {
   http: "agw serve compartilhado",
 };
 
-type LastApply = { action: string; results: ProjectApplyResult[] };
+type LastApply = { action: string; outcome: ApplyOutcome };
+
+/** A request that succeeded can still leave a client, folder or project unapplied; that is a warning, not a success. */
+function verdictFor(done: string) {
+  return (outcome: ApplyOutcome): Verdict => {
+    const problem = applyProblem(outcome);
+    if (problem !== undefined) {
+      return { tone: "warn", message: problem };
+    }
+    return { tone: "ok", message: done };
+  };
+}
+
+const installVerdict = (result: ProjectApplyResult) => verdictFor("Instalado.")(outcomeOfResult(result));
+const uninstallVerdict = (result: ProjectApplyResult) => verdictFor("Desinstalado.")(outcomeOfResult(result));
 
 export function ProjectsScreen() {
   const projects = useProjects();
@@ -31,11 +48,11 @@ export function ProjectsScreen() {
         description="Repositórios onde o agw está instalado para Claude, Codex e Grok."
         actions={
           <>
-            <MutationStatus mutation={sync} success="Sincronizado." />
+            <MutationStatus mutation={sync} verdict={verdictFor("Sincronizado.")} />
             <button
               type="button"
               disabled={sync.isPending}
-              onClick={() => sync.mutate(undefined, { onSuccess: (results) => setLast({ action: "Sincronização", results }) })}
+              onClick={() => sync.mutate(undefined, { onSuccess: (outcome) => setLast({ action: "Sincronização", outcome }) })}
             >
               Sincronizar tudo
             </button>
@@ -43,16 +60,20 @@ export function ProjectsScreen() {
         }
       />
       <div className="projects-page">
-        <InstallCard onApplied={(result) => setLast({ action: "Instalação", results: [result] })} />
-        {last !== undefined && <LastResult last={last} onDismiss={() => setLast(undefined)} />}
+        <InstallCard onApplied={(result) => setLast({ action: "Instalação", outcome: outcomeOfResult(result) })} />
+        {last !== undefined && (
+          <LastResult last={last} installed={projects.data?.length ?? 0} onDismiss={() => setLast(undefined)} />
+        )}
         <QueryState query={projects}>
           {(views) => (
             <ProjectTable
               projects={views}
               removing={uninstall.isPending && uninstall.variables}
-              status={<MutationStatus mutation={uninstall} success="Desinstalado." />}
+              status={<MutationStatus mutation={uninstall} verdict={uninstallVerdict} />}
               onUninstall={(dir) =>
-                uninstall.mutate(dir, { onSuccess: (result) => setLast({ action: "Desinstalação", results: [result] }) })
+                uninstall.mutate(dir, {
+                  onSuccess: (result) => setLast({ action: "Desinstalação", outcome: outcomeOfResult(result) }),
+                })
               }
             />
           )}
@@ -71,7 +92,8 @@ function InstallCard({ onApplied }: { onApplied: (result: ProjectApplyResult) =>
   const [transport, setTransport] = useState<Transport>("stdio");
   const chosenProfile = profile || profiles[0] || "";
   const trimmedDir = dir.trim();
-  const absolute = trimmedDir.startsWith("/");
+  const dirProblem = projectDirProblem(trimmedDir);
+  const dirHint = hintFor(trimmedDir, dirProblem);
 
   return (
     <form
@@ -88,6 +110,8 @@ function InstallCard({ onApplied }: { onApplied: (result: ProjectApplyResult) =>
             className="mono"
             placeholder="/caminho/absoluto/do/repo"
             value={dir}
+            aria-invalid={dirHint !== undefined}
+            aria-describedby={dirHint && "install-dir-hint"}
             onChange={(event) => setDir(event.target.value)}
           />
         </label>
@@ -117,7 +141,7 @@ function InstallCard({ onApplied }: { onApplied: (result: ProjectApplyResult) =>
             ))}
           </div>
         </div>
-        <button type="submit" className="primary" disabled={!absolute || chosenProfile === "" || install.isPending}>
+        <button type="submit" className="primary" disabled={dirProblem !== undefined || chosenProfile === "" || install.isPending}>
           Instalar
         </button>
       </div>
@@ -125,15 +149,17 @@ function InstallCard({ onApplied }: { onApplied: (result: ProjectApplyResult) =>
         <span className="muted small">
           {transportLabels[transport]}: {transportHints[transport]}.
         </span>
-        {trimmedDir !== "" && !absolute && <span className="status-line error">Use um caminho absoluto.</span>}
+        <FieldHint id="install-dir-hint" message={dirHint} />
         {config.error !== null && <span className="status-line error">Perfis indisponíveis: {config.error.message}</span>}
-        <MutationStatus mutation={install} success="Instalado." />
+        <MutationStatus mutation={install} verdict={installVerdict} />
       </div>
     </form>
   );
 }
 
-function LastResult({ last, onDismiss }: { last: LastApply; onDismiss: () => void }) {
+function LastResult({ last, installed, onDismiss }: { last: LastApply; installed: number; onDismiss: () => void }) {
+  const { outcome } = last;
+  const empty = isEmptyOutcome(outcome);
   return (
     <section className="panel last-result" aria-live="polite">
       <header className="panel-header">
@@ -143,10 +169,13 @@ function LastResult({ last, onDismiss }: { last: LastApply; onDismiss: () => voi
           Fechar
         </button>
       </header>
-      {last.results.length === 0 && <p className="empty">Nenhum projeto para sincronizar.</p>}
-      {last.results.map((result) => (
-        <ApplyResultView key={result.dir} result={result} />
-      ))}
+      {empty && installed === 0 && <p className="empty">Nenhum projeto instalado para sincronizar.</p>}
+      {empty && installed > 0 && (
+        <p className="empty">
+          A resposta veio vazia, mas {plural(installed, "projeto está instalado", "projetos estão instalados")}.
+        </p>
+      )}
+      <ApplyOutcomeView outcome={outcome} />
     </section>
   );
 }

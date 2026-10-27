@@ -423,8 +423,12 @@
 
 /* ---------- status and feedback ---------- */
 
+.status-region {
+  display: contents;
+}
 .status-line {
   font-size: var(--text-xs);
+  overflow-wrap: anywhere;
 }
 .status-line.pending {
   color: var(--text-muted);
@@ -434,6 +438,14 @@
 }
 .status-line.error {
   color: var(--danger);
+}
+.status-line.warn {
+  color: var(--warning);
+}
+
+.field-hint {
+  color: var(--danger);
+  font-size: var(--text-xs);
 }
 
 .error-box,
