@@ -560,3 +560,40 @@ test("symlinks in the skills hub never let the API reach outside it", async () =
   const written = await api<{ content: string }>("PUT", "/api/skills/globex/real", { content: mine });
   assert.equal(written.content, mine, "the hub's own skills still work");
 });
+
+test("validation errors read as plain pt-BR sentences, without zod's decorations", async () => {
+  const errorOf = async (method: string, path: string, body?: unknown) => {
+    const reply = await call(method, path, { body });
+    assert.equal(reply.status, 400, `${method} ${path} -> ${reply.status} ${reply.text}`);
+    return (reply.json as { error: string }).error;
+  };
+  const slugRule = "use letras minúsculas, dígitos e hífens simples, sem hífen no início ou no fim";
+
+  assert.equal(await errorOf("POST", "/api/skills/sets", { name: "Bad Name" }), `Nome: ${slugRule}`);
+  assert.equal(await errorOf("GET", "/api/skills/UPPER/deploy"), `Conjunto: ${slugRule}`);
+  assert.equal(
+    await errorOf("GET", "/api/skills/globex/.hidden"),
+    "Nome: use letras, dígitos, '.', '_' e '-', sem começar com '.'",
+  );
+  assert.equal(
+    await errorOf("PUT", "/api/secrets/work/9LIVES", { value: "x" }),
+    "Chave: use letras, dígitos e '_', sem começar com dígito",
+  );
+  assert.equal(
+    await errorOf("POST", "/api/projects", { dir: "relative/dir", profile: "work", transport: "stdio" }),
+    "Pasta: precisa ser um caminho absoluto\nPasta: precisa ser uma pasta existente",
+  );
+  assert.equal(
+    await errorOf("POST", "/api/projects", { dir: join(dirname(project), "nowhere"), profile: "work", transport: "stdio" }),
+    "Pasta: precisa ser uma pasta existente",
+  );
+  assert.equal(
+    await errorOf("PUT", "/api/skills/globex/plain", { content: "no frontmatter" }),
+    'O frontmatter do SKILL.md precisa começar com "---" e ter "name: plain"',
+  );
+  assert.equal(
+    await errorOf("PUT", "/api/skills/globex/plain", { content: "---\nname: plain\n---\nBody" }),
+    'O frontmatter do SKILL.md precisa de uma "description"',
+  );
+  assert.match(await errorOf("PUT", "/api/secrets/work/CR", { value: "a\r\nb" }), /retorno de carro/);
+});

@@ -7,7 +7,7 @@ import { errorMessage, UserError } from "./errors.ts";
 import { writeFileAtomic } from "./fsutil.ts";
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-export const slug = z.string().regex(SLUG, "use lowercase letters, digits and single hyphens");
+export const slug = z.string().regex(SLUG, "use letras minúsculas, dígitos e hífens simples, sem hífen no início ou no fim");
 
 /** Joins upstream server and item names: `github__create_issue`. Server slugs never contain `_`. */
 export const SEPARATOR = "__";

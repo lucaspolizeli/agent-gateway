@@ -38,14 +38,14 @@ const STATUS: Record<UserErrorKind, number> = { invalid: 400, notFound: 404, con
 
 const noParams = z.object({});
 const noBody = z.unknown();
-const skillName = z.string().regex(SKILL_NAME, "use letters, digits, '.', '_' and '-', not starting with '.'");
+const skillName = z.string().regex(SKILL_NAME, "use letras, dígitos, '.', '_' e '-', sem começar com '.'");
 const skillParams = z.object({ set: slug, name: skillName });
 const profileParam = z.object({ name: slug });
-const secretParams = z.object({ profile: slug, key: z.string().regex(SECRET_KEY, "use letters, digits and '_'") });
+const secretParams = z.object({ profile: slug, key: z.string().regex(SECRET_KEY, "use letras, dígitos e '_', sem começar com dígito") });
 const directory = z
   .string()
-  .refine(isAbsolute, "must be an absolute path")
-  .refine((dir) => existsSync(dir) && statSync(dir).isDirectory(), "must be an existing folder")
+  .refine(isAbsolute, "precisa ser um caminho absoluto")
+  .refine((dir) => existsSync(dir) && statSync(dir).isDirectory(), "precisa ser uma pasta existente")
   .superRefine((dir, ctx) => {
     const problem = unsafeProjectDir(dir);
     if (problem !== undefined) {
@@ -80,6 +80,40 @@ function matchSegments(pattern: string[], actual: string[]): Record<string, stri
     }
   }
   return params;
+}
+
+/** Field names as the pt-BR UI calls them; a name not listed is shown as its path. */
+const FIELD_LABELS: Record<string, string> = {
+  name: "Nome",
+  set: "Conjunto",
+  toSet: "Conjunto de destino",
+  profile: "Perfil",
+  key: "Chave",
+  value: "Valor",
+  dir: "Pasta",
+  path: "Caminho",
+  transport: "Transporte",
+  content: "Conteúdo",
+  server: "Servidor",
+  from: "Origem",
+  to: "Destino",
+};
+
+/** One line per rejected field, `Field: reason`, without the decorations of zod's own report. */
+function describeInvalidInput(error: z.ZodError): string {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.map(String);
+      if (path.length === 0) {
+        return issue.message;
+      }
+      let label = path.join(".");
+      if (path.length === 1) {
+        label = FIELD_LABELS[label] ?? label;
+      }
+      return `${label}: ${issue.message}`;
+    })
+    .join("\n");
 }
 
 function toApplyResult(report: ProjectApplyResult): ProjectApplyResult {
@@ -316,7 +350,7 @@ export function createAdminApi(context: AdminContext) {
       if (error instanceof UserError) {
         sendError(res, STATUS[error.kind], error.message);
       } else if (error instanceof z.ZodError) {
-        sendError(res, 400, z.prettifyError(error));
+        sendError(res, 400, describeInvalidInput(error));
       } else {
         process.stderr.write(`[agent-gateway] ${req.method} ${url.pathname}: ${errorMessage(error)}\n`);
         sendError(res, 500, errorMessage(error));
