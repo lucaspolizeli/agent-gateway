@@ -3,10 +3,11 @@ import * as api from "../api/client.ts";
 import type { ProfileStatus } from "../contract.ts";
 import { queryKeys } from "./keys.ts";
 
-const STATUS_POLL_MS = 3000;
+export const STATUS_POLL_MS = 3000;
 
+/** Polled with the statuses: `missingSecrets` changes whenever a secrets file or `gateway.json` does. */
 export function useProfiles() {
-  return useQuery({ queryKey: queryKeys.profiles, queryFn: api.listProfiles });
+  return useQuery({ queryKey: queryKeys.profiles, queryFn: api.listProfiles, refetchInterval: STATUS_POLL_MS });
 }
 
 /** Polls while the tab is visible: React Query pauses intervals for hidden documents. */

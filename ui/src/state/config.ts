@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api/client.ts";
 import type { ConfigEdit } from "../contract.ts";
 import { queryKeys } from "./keys.ts";
+import { STATUS_POLL_MS } from "./profiles.ts";
 
+/** Polled so edits made to `gateway.json` outside the UI reach the open forms. */
 export function useConfig() {
-  return useQuery({ queryKey: queryKeys.config, queryFn: api.getConfig });
+  return useQuery({ queryKey: queryKeys.config, queryFn: api.getConfig, refetchInterval: STATUS_POLL_MS });
 }
 
 /**

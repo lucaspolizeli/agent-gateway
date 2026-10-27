@@ -2,13 +2,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api/client.ts";
 import type { SkillSet } from "../contract.ts";
 import { queryKeys } from "./keys.ts";
+import { STATUS_POLL_MS } from "./profiles.ts";
 
 export function useSkillSets() {
   return useQuery({ queryKey: queryKeys.skillSets, queryFn: api.listSkillSets });
 }
 
+/** Polled so a SKILL.md edited on disk reaches the open editor. */
 export function useSkill(set: string, name: string) {
-  return useQuery({ queryKey: queryKeys.skill(set, name), queryFn: () => api.getSkill(set, name) });
+  return useQuery({
+    queryKey: queryKeys.skill(set, name),
+    queryFn: () => api.getSkill(set, name),
+    refetchInterval: STATUS_POLL_MS,
+  });
 }
 
 export function useImportableSkills() {
