@@ -1,10 +1,17 @@
+import { CircleCheckIcon, KeyRoundIcon, PlayIcon, RotateCwIcon, ServerCrashIcon } from "lucide-react";
 import type { ProfileStatus, ResolvedProfileView, UpstreamState } from "../contract.ts";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { Chain } from "../components/Chain.tsx";
-import { CountBadge } from "../components/CountBadge.tsx";
-import { MutationStatus } from "../components/MutationStatus.tsx";
+import { withFeedback } from "../components/feedback.ts";
 import { PageHeader } from "../components/PageHeader.tsx";
 import { QueryState } from "../components/QueryState.tsx";
-import { reconnectRowVerdict, reconnectVerdict } from "../components/reconnectVerdict.ts";
+import { reconnectVerdict } from "../components/reconnectVerdict.ts";
 import { RunningBadge } from "../components/RunningBadge.tsx";
 import { StatusDot } from "../components/StatusDot.tsx";
 import { UpstreamBadge } from "../components/UpstreamBadge.tsx";
@@ -18,35 +25,35 @@ export function StatusScreen() {
   const profiles = useProfiles();
   const health = useGatewayHealth();
   return (
-    <section>
+    <>
       <PageHeader title="Status" description="Saúde dos gateways de cada perfil. Atualiza a cada 3 s." />
       <QueryState query={profiles}>
         {(views) => (
-          <div className="status-page">
+          <div className="flex flex-col gap-6">
             <StatTiles summary={health.summary} />
             <AttentionList items={health.summary.attention} />
             <ProfileCards views={views} statuses={health.statuses} />
           </div>
         )}
       </QueryState>
-    </section>
+    </>
   );
 }
 
-type Tile = { label: string; value: number; hint: string; tone: "neutral" | "ok" | "warn" | "danger" };
+type Tile = { label: string; value: number; hint: string; tone: string };
 
 function tiles(summary: HealthSummary): Tile[] {
-  let failingTone: Tile["tone"] = "neutral";
+  let failingTone = "";
   if (summary.serversFailing > 0) {
-    failingTone = "danger";
+    failingTone = "text-destructive";
   }
-  let secretsTone: Tile["tone"] = "neutral";
+  let secretsTone = "";
   if (summary.missingSecrets > 0) {
-    secretsTone = "warn";
+    secretsTone = "text-warning";
   }
   return [
-    { label: "Perfis rodando", value: summary.running, hint: `de ${summary.profiles} perfis`, tone: "neutral" },
-    { label: "Servidores prontos", value: summary.serversReady, hint: "nos perfis rodando", tone: "ok" },
+    { label: "Perfis rodando", value: summary.running, hint: `de ${summary.profiles} perfis`, tone: "" },
+    { label: "Servidores prontos", value: summary.serversReady, hint: "nos perfis rodando", tone: "text-success" },
     { label: "Servidores com falha", value: summary.serversFailing, hint: "nos perfis rodando", tone: failingTone },
     { label: "Segredos faltando", value: summary.missingSecrets, hint: "em todos os perfis", tone: secretsTone },
   ];
@@ -54,13 +61,15 @@ function tiles(summary: HealthSummary): Tile[] {
 
 function StatTiles({ summary }: { summary: HealthSummary }) {
   return (
-    <div className="stat-grid">
+    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
       {tiles(summary).map((tile) => (
-        <div key={tile.label} className={`stat-tile stat-${tile.tone}`}>
-          <div className="stat-label">{tile.label}</div>
-          <div className="stat-value">{tile.value}</div>
-          <div className="stat-hint">{tile.hint}</div>
-        </div>
+        <Card key={tile.label}>
+          <CardHeader>
+            <CardDescription>{tile.label}</CardDescription>
+            <CardTitle className={cn("text-3xl font-semibold tabular-nums", tile.tone)}>{tile.value}</CardTitle>
+          </CardHeader>
+          <CardFooter className="text-xs text-muted-foreground">{tile.hint}</CardFooter>
+        </Card>
       ))}
     </div>
   );
@@ -68,72 +77,105 @@ function StatTiles({ summary }: { summary: HealthSummary }) {
 
 function AttentionList({ items }: { items: AttentionItem[] }) {
   return (
-    <section className="panel">
-      <header className="panel-header">
-        <h2 className="panel-title">Precisa de atenção</h2>
-        <CountBadge count={items.length} tone="danger" />
-      </header>
-      {items.length === 0 && (
-        <div className="attention-empty">
-          <StatusDot health="ready" />
-          Nada pendente: todos os servidores dos perfis rodando estão prontos.
-        </div>
-      )}
-      {items.length > 0 && (
-        <ul className="attention-list">
-          {items.map((item) => {
-            if (item.kind === "failedServer") {
-              return <FailedServerRow key={`server:${item.profile}:${item.server}`} item={item} />;
-            }
-            return <MissingSecretRow key={`secret:${item.profile}:${item.key}`} item={item} />;
-          })}
-        </ul>
-      )}
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Precisa de atenção
+          {items.length > 0 && <Badge variant="destructive">{items.length}</Badge>}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {items.length === 0 && (
+          <Empty className="flex-row justify-start gap-3 border p-3 text-left">
+            <EmptyMedia variant="icon" className="mb-0 bg-success/15 text-success">
+              <CircleCheckIcon />
+            </EmptyMedia>
+            <EmptyHeader className="items-start">
+              <EmptyTitle>Nada pendente</EmptyTitle>
+              <EmptyDescription>Todos os servidores dos perfis rodando estão prontos.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
+        {items.length > 0 && (
+          <ItemGroup className="gap-2">
+            {items.map((item) => {
+              if (item.kind === "failedServer") {
+                return <FailedServerRow key={`server:${item.profile}:${item.server}`} item={item} />;
+              }
+              return <MissingSecretRow key={`secret:${item.profile}:${item.key}`} item={item} />;
+            })}
+          </ItemGroup>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReconnectButton({ profile, server, size }: { profile: string; server: string; size?: "sm" }) {
+  const reconnect = useReconnectServer();
+  const vars = { profile, server };
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size={size}
+      disabled={reconnect.isPending}
+      onClick={() => void withFeedback(reconnect.mutateAsync(vars), (status) => reconnectVerdict(status, vars))}
+    >
+      {reconnect.isPending && <Spinner />}
+      {!reconnect.isPending && <RotateCwIcon />}
+      Reconectar
+    </Button>
   );
 }
 
 function FailedServerRow({ item }: { item: Extract<AttentionItem, { kind: "failedServer" }> }) {
-  const reconnect = useReconnectServer();
   return (
-    <li className="attention-row">
-      <span className="attention-kind attention-danger">Falha</span>
-      <div className="attention-body">
-        <div className="attention-title">
-          <span className="mono">{item.server}</span>
-          <span className="muted">em</span>
-          <a href={hrefFor({ screen: "profiles", profile: item.profile })}>{item.profile}</a>
-        </div>
-        <pre className="attention-error">{item.error}</pre>
-        <MutationStatus mutation={reconnect} verdict={reconnectRowVerdict} />
-      </div>
-      <button
-        type="button"
-        disabled={reconnect.isPending}
-        onClick={() => reconnect.mutate({ profile: item.profile, server: item.server })}
-      >
-        Reconectar
-      </button>
-    </li>
+    <Item variant="outline" className="items-start">
+      <ItemMedia variant="icon" className="bg-destructive/10 text-destructive">
+        <ServerCrashIcon />
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle className="flex-wrap">
+          <span className="font-mono">{item.server}</span>
+          <span className="font-normal text-muted-foreground">em</span>
+          <a className="underline-offset-4 hover:underline" href={hrefFor({ screen: "profiles", profile: item.profile })}>
+            {item.profile}
+          </a>
+        </ItemTitle>
+        <pre className="mt-1 max-h-32 overflow-auto rounded-md bg-muted px-2 py-1.5 font-mono text-xs whitespace-pre-wrap text-destructive">
+          {item.error}
+        </pre>
+      </ItemContent>
+      <ItemActions>
+        <ReconnectButton profile={item.profile} server={item.server} />
+      </ItemActions>
+    </Item>
   );
 }
 
 function MissingSecretRow({ item }: { item: Extract<AttentionItem, { kind: "missingSecret" }> }) {
   return (
-    <li className="attention-row">
-      <span className="attention-kind attention-warn">Segredo</span>
-      <div className="attention-body">
-        <div className="attention-title">
-          <span className="mono">{item.key}</span>
-          <span className="muted">faltando em</span>
-          <a href={hrefFor({ screen: "profiles", profile: item.profile })}>{item.profile}</a>
-        </div>
-        <div className="muted small">Sem valor nos segredos do perfil nem no ambiente.</div>
-      </div>
-      <a className="button-link" href={hrefFor({ screen: "profiles", profile: item.profile, tab: "segredos" })}>
-        Definir segredo
-      </a>
-    </li>
+    <Item variant="outline">
+      <ItemMedia variant="icon" className="bg-warning/15 text-warning">
+        <KeyRoundIcon />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle className="flex-wrap">
+          <span className="font-mono">{item.key}</span>
+          <span className="font-normal text-muted-foreground">faltando em</span>
+          <a className="underline-offset-4 hover:underline" href={hrefFor({ screen: "profiles", profile: item.profile })}>
+            {item.profile}
+          </a>
+        </ItemTitle>
+        <ItemDescription>Sem valor nos segredos do perfil nem no ambiente.</ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Button variant="outline" asChild>
+          <a href={hrefFor({ screen: "profiles", profile: item.profile, tab: "segredos" })}>Definir segredo</a>
+        </Button>
+      </ItemActions>
+    </Item>
   );
 }
 
@@ -141,81 +183,95 @@ type CardsProps = { views: ResolvedProfileView[]; statuses: Map<string, ProfileS
 
 function ProfileCards({ views, statuses }: CardsProps) {
   if (views.length === 0) {
-    return <p className="empty">Nenhum perfil configurado.</p>;
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyTitle>Nenhum perfil configurado</EmptyTitle>
+          <EmptyDescription>Crie um perfil para agrupar servidores, skills e segredos.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild>
+            <a href={hrefFor({ screen: "profiles" })}>Ir para Perfis</a>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
   }
   const running = views.filter((view) => statuses.get(view.name)?.running !== false);
   const stopped = views.filter((view) => statuses.get(view.name)?.running === false);
   return (
-    <section className="stack">
-      <h2 className="eyebrow">Perfis</h2>
+    <section className="flex flex-col gap-3">
+      <h2 className="text-sm font-medium text-muted-foreground">Perfis</h2>
       {running.length > 0 && (
-        <div className="profile-grid">
+        <div className="grid gap-4 lg:grid-cols-2">
           {running.map((view) => (
             <RunningCard key={view.name} view={view} status={statuses.get(view.name)} />
           ))}
         </div>
       )}
       {stopped.length > 0 && (
-        <ul className="panel stopped-list">
-          {stopped.map((view) => (
-            <StoppedRow key={view.name} view={view} />
-          ))}
-        </ul>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Parados</CardTitle>
+            <CardDescription>Sobem quando um cliente conecta, ou agora pelo botão Iniciar.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ItemGroup className="gap-1">
+              {stopped.map((view) => (
+                <StoppedRow key={view.name} view={view} />
+              ))}
+            </ItemGroup>
+          </CardContent>
+        </Card>
       )}
     </section>
   );
 }
 
 function RunningCard({ view, status }: { view: ResolvedProfileView; status?: ProfileStatus }) {
-  const reconnect = useReconnectServer();
   return (
-    <article className="panel profile-card">
-      <header className="profile-card-header">
-        <a className="profile-card-title" href={hrefFor({ screen: "profiles", profile: view.name })}>
-          {view.name}
-        </a>
-        <RunningBadge state={profileState(status)} />
-        <span className="spacer" />
-        <span className="muted small">
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <a className="underline-offset-4 hover:underline" href={hrefFor({ screen: "profiles", profile: view.name })}>
+            {view.name}
+          </a>
+          <RunningBadge state={profileState(status)} />
+        </CardTitle>
+        <CardDescription>
           <Chain chain={view.chain} />
-        </span>
-      </header>
-      <ul className="upstream-list">
+        </CardDescription>
+        <CardAction className="text-xs text-muted-foreground">
+          {plural(status?.tools.length ?? 0, "tool exposta", "tools expostas")}
+        </CardAction>
+      </CardHeader>
+      <CardContent>
         {status !== undefined && status.upstreams.length === 0 && (
-          <li className="muted small upstream-empty">Nenhum upstream conectado.</li>
+          <p className="text-sm text-muted-foreground">Nenhum upstream conectado.</p>
         )}
-        {(status?.upstreams ?? []).map((upstream) => (
-          <UpstreamRow
-            key={upstream.server}
-            upstream={upstream}
-            reconnecting={reconnect.isPending && reconnect.variables?.server === upstream.server}
-            onReconnect={() => reconnect.mutate({ profile: view.name, server: upstream.server })}
-          />
-        ))}
-      </ul>
-      <footer className="profile-card-footer">
-        <span className="muted small">{plural(status?.tools.length ?? 0, "tool exposta", "tools expostas")}</span>
-        <span className="spacer" />
-        <MutationStatus mutation={reconnect} verdict={reconnectVerdict} />
-      </footer>
-    </article>
+        <ul className="divide-y">
+          {(status?.upstreams ?? []).map((upstream) => (
+            <UpstreamRow key={upstream.server} profile={view.name} upstream={upstream} />
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
-type UpstreamRowProps = { upstream: UpstreamState; reconnecting: boolean; onReconnect: () => void };
-
-function UpstreamRow({ upstream, reconnecting, onReconnect }: UpstreamRowProps) {
+function UpstreamRow({ profile, upstream }: { profile: string; upstream: UpstreamState }) {
   return (
-    <li className="upstream-row">
+    <li className="flex items-center gap-2 py-1.5">
       <StatusDot health={upstream.state} />
-      <a className="mono upstream-name" href={hrefFor({ screen: "servers", server: upstream.server })}>
+      <a
+        className="min-w-0 truncate font-mono text-sm underline-offset-4 hover:underline"
+        href={hrefFor({ screen: "servers", server: upstream.server })}
+      >
         {upstream.server}
       </a>
       <UpstreamBadge upstream={upstream} />
-      <span className="spacer" />
-      <button type="button" className="small ghost" disabled={reconnecting} onClick={onReconnect}>
-        Reconectar
-      </button>
+      <span className="flex-1" />
+      <ReconnectButton profile={profile} server={upstream.server} size="sm" />
     </li>
   );
 }
@@ -224,23 +280,35 @@ function StoppedRow({ view }: { view: ResolvedProfileView }) {
   const start = useStartProfile();
   const servers = Object.keys(view.servers).sort();
   return (
-    <li className="stopped-row">
-      <StatusDot health="unknown" />
-      <a className="profile-card-title" href={hrefFor({ screen: "profiles", profile: view.name })}>
-        {view.name}
-      </a>
-      <RunningBadge state="stopped" />
-      <span className="muted small">
-        <Chain chain={view.chain} />
-      </span>
-      <span className="muted small truncate stopped-servers">
-        {plural(servers.length, "servidor", "servidores")}: <span className="mono">{servers.join(", ")}</span>
-      </span>
-      <span className="spacer" />
-      <MutationStatus mutation={start} success="Iniciado." />
-      <button type="button" disabled={start.isPending} onClick={() => start.mutate(view.name)}>
-        Iniciar
-      </button>
-    </li>
+    <Item size="sm" className="px-1">
+      <ItemMedia className="self-center">
+        <StatusDot health="unknown" />
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle>
+          <a className="underline-offset-4 hover:underline" href={hrefFor({ screen: "profiles", profile: view.name })}>
+            {view.name}
+          </a>
+          <RunningBadge state="stopped" />
+          <Chain chain={view.chain} />
+        </ItemTitle>
+        <ItemDescription className="truncate">
+          {plural(servers.length, "servidor", "servidores")}: <span className="font-mono">{servers.join(", ")}</span>
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={start.isPending}
+          onClick={() => void withFeedback(start.mutateAsync(view.name), `${view.name} iniciado.`)}
+        >
+          {start.isPending && <Spinner />}
+          {!start.isPending && <PlayIcon />}
+          Iniciar
+        </Button>
+      </ItemActions>
+    </Item>
   );
 }

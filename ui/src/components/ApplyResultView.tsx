@@ -1,43 +1,54 @@
-import type { ProjectApplyResult } from "../contract.ts";
+import { CheckIcon, XIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ClientResult, ProjectApplyResult } from "../contract.ts";
 import { skillCounts } from "../domain/applyResult.ts";
 
 export function ApplyResultView({ result }: { result: ProjectApplyResult }) {
   const counts = skillCounts(result);
   return (
-    <div className="apply-result">
-      <span className="mono truncate apply-dir" title={result.dir}>
-        {result.dir}
-      </span>
-      <span className="apply-clients">
+    <div className="space-y-2 rounded-lg border p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs" title={result.dir}>
+          {result.dir}
+        </span>
         {result.clients.map((client) => (
-          <ClientChip key={client.client} ok={client.ok} name={client.client} detail={client.detail} />
+          <ClientBadge key={client.client} client={client} />
         ))}
-      </span>
-      <span className="muted small">
+      </div>
+      <p className="text-xs text-muted-foreground">
         skills: {counts.linked} linkadas · {counts.removed} removidas · {counts.skipped} ignoradas
-      </span>
+      </p>
       {result.clients
         .filter((client) => !client.ok)
         .map((client) => (
-          <div key={client.client} className="apply-error">
-            <b>{client.client}:</b> {client.detail}
-          </div>
+          <p key={client.client} className="text-xs text-destructive">
+            <span className="font-medium">{client.client}:</span> {client.detail}
+          </p>
         ))}
     </div>
   );
 }
 
-function ClientChip({ ok, name, detail }: { ok: boolean; name: string; detail: string }) {
-  if (ok) {
-    return (
-      <span className="chip chip-ok" title={detail}>
-        {name} <b>ok</b>
-      </span>
+function ClientBadge({ client }: { client: ClientResult }) {
+  let badge = (
+    <Badge variant="destructive" tabIndex={0}>
+      <XIcon data-icon="inline-start" />
+      {client.client}
+    </Badge>
+  );
+  if (client.ok) {
+    badge = (
+      <Badge variant="success" tabIndex={0}>
+        <CheckIcon data-icon="inline-start" />
+        {client.client}
+      </Badge>
     );
   }
   return (
-    <span className="chip chip-fail" title={detail}>
-      {name} <b>FAIL</b>
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+      <TooltipContent>{client.detail}</TooltipContent>
+    </Tooltip>
   );
 }

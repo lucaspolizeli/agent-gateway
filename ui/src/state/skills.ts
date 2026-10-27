@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import * as api from "../api/client.ts";
 import type { SkillSet } from "../contract.ts";
 import { queryKeys } from "./keys.ts";
@@ -21,6 +21,23 @@ export function useImportableSkills() {
   return useQuery({ queryKey: queryKeys.importable, queryFn: api.listImportableSkills });
 }
 
+export function useUserSkills() {
+  return useQuery({ queryKey: queryKeys.userSkills, queryFn: api.listUserSkills });
+}
+
+/** A mutation, not a query: each run asks every CLI again and takes seconds, so it only runs on request. */
+export function useSkillsDoctor() {
+  return useMutation({ mutationFn: (dir: string | undefined) => api.runSkillsDoctor(dir) });
+}
+
+/** Whatever changes the hub changes what the user level sees and what is left to import. */
+function invalidateUserLevel(client: QueryClient) {
+  return Promise.all([
+    client.invalidateQueries({ queryKey: queryKeys.importable }),
+    client.invalidateQueries({ queryKey: queryKeys.userSkills }),
+  ]);
+}
+
 /** `onDone` lives on the hook because moving or deleting a skill unmounts the editor that asked for it. */
 function useSetsMutation<TVars>(run: (vars: TVars) => Promise<SkillSet[]>, onDone?: (vars: TVars) => void) {
   const client = useQueryClient();
@@ -29,7 +46,7 @@ function useSetsMutation<TVars>(run: (vars: TVars) => Promise<SkillSet[]>, onDon
     onSuccess: async (sets, vars) => {
       client.setQueryData(queryKeys.skillSets, sets);
       onDone?.(vars);
-      await client.invalidateQueries({ queryKey: queryKeys.importable });
+      await invalidateUserLevel(client);
     },
   });
 }
@@ -60,7 +77,7 @@ export function useSaveSkill() {
       api.saveSkill(vars.set, vars.name, vars.content),
     onSuccess: async (doc) => {
       client.setQueryData(queryKeys.skill(doc.set, doc.name), doc);
-      await client.invalidateQueries({ queryKey: queryKeys.skillSets });
+      await Promise.all([client.invalidateQueries({ queryKey: queryKeys.skillSets }), invalidateUserLevel(client)]);
     },
   });
 }

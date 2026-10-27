@@ -1,8 +1,12 @@
+import { SaveIcon, Undo2Icon } from "lucide-react";
 import type { GatewayConfig, ProfileSpec, ResolvedProfileView } from "../../contract.ts";
+import { Button } from "@/components/ui/button";
+import { FieldDescription, FieldError, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
-import { focusFirstField } from "../../components/focusFirstField.ts";
 import { CheckboxGroup } from "../../components/CheckboxGroup.tsx";
-import { MutationStatus } from "../../components/MutationStatus.tsx";
+import { withFeedback } from "../../components/feedback.ts";
+import { focusFirstField } from "../../components/focusFirstField.ts";
 import { StaleNotice } from "../../components/StaleNotice.tsx";
 import { descendantsOf, sameProfileSpec } from "../../domain/profiles.ts";
 import { useConfigEdit } from "../../state/config.ts";
@@ -32,26 +36,33 @@ export function ProfileSpecEditor({ name, spec, config, view, skillSets }: Props
     .filter((profile) => profile !== name && !descendants.has(profile))
     .sort();
   const skillOptions = [...new Set([...skillSets, ...draft.skills])].sort();
+  function edit(next: ProfileSpec) {
+    save.reset();
+    setDraft(next);
+  }
 
   return (
     <form
-      className="tab-body"
+      className="flex flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault();
-        save.mutate({ op: "upsertProfile", name, profile: { ...draft, hiddenTools: spec.hiddenTools } });
+        void withFeedback(
+          save.mutateAsync({ op: "upsertProfile", name, profile: { ...draft, hiddenTools: spec.hiddenTools } }),
+          "Perfil salvo.",
+        );
       }}
     >
-      {stale && <StaleNotice message="O perfil mudou fora daqui. Recarregar?" onReload={reload} />}
-      <section className="section">
-        <h3 className="section-title">Herança e recursos</h3>
-        <p className="section-hint">O que este perfil herda e acrescenta. Os itens dos perfis pais entram sozinhos.</p>
-        <div className="checkbox-columns">
+      {stale && <StaleNotice message="Este perfil foi salvo em outro lugar enquanto você editava. Recarregar troca suas edições pela versão salva." onReload={reload} />}
+      <FieldSet>
+        <FieldLegend>Herança e recursos</FieldLegend>
+        <FieldDescription>O que este perfil herda e acrescenta. Os itens dos perfis pais entram sozinhos.</FieldDescription>
+        <div className="grid gap-3 md:grid-cols-3">
           <CheckboxGroup
             legend="Estende"
             options={parentOptions}
             selected={draft.extends}
             empty="Nenhum outro perfil."
-            onChange={(extendsList) => setDraft({ ...draft, extends: extendsList })}
+            onChange={(extendsList) => edit({ ...draft, extends: extendsList })}
           />
           <CheckboxGroup
             legend="Servidores"
@@ -59,46 +70,45 @@ export function ProfileSpecEditor({ name, spec, config, view, skillSets }: Props
             options={Object.keys(config.servers).sort()}
             selected={draft.servers}
             empty="Nenhum servidor cadastrado."
-            onChange={(servers) => setDraft({ ...draft, servers })}
+            onChange={(servers) => edit({ ...draft, servers })}
           />
           <CheckboxGroup
             legend="Conjuntos de skills"
             options={skillOptions}
             selected={draft.skills}
             empty="Nenhum conjunto."
-            onChange={(skills) => setDraft({ ...draft, skills })}
+            onChange={(skills) => edit({ ...draft, skills })}
           />
         </div>
-      </section>
-      <section className="section">
-        <h3 className="section-title">Resultado da cadeia</h3>
-        <p className="section-hint">O que fica salvo hoje, já com a herança resolvida.</p>
-        {view === undefined && <p className="muted">Visão resolvida indisponível.</p>}
+      </FieldSet>
+      <FieldSet>
+        <FieldLegend>Resultado da cadeia</FieldLegend>
+        <FieldDescription>O que fica salvo hoje, já com a herança resolvida.</FieldDescription>
+        {view === undefined && <p className="text-sm text-muted-foreground">Visão resolvida indisponível.</p>}
         {view !== undefined && <ResolvedPanel view={view} />}
-      </section>
-      <ActionBar
-        messages={
-          <>
-            <DirtyIndicator dirty={dirty} />
-            <MutationStatus mutation={save} />
-          </>
-        }
-      >
+      </FieldSet>
+      {save.error !== null && <FieldError className="whitespace-pre-wrap">{save.error.message}</FieldError>}
+      <ActionBar status={<DirtyIndicator dirty={dirty} />}>
         {dirty && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={(event) => {
               const form = event.currentTarget.form;
               reload();
+              save.reset();
               focusFirstField(form);
             }}
           >
+            <Undo2Icon />
             Descartar
-          </button>
+          </Button>
         )}
-        <button type="submit" className="primary" disabled={!dirty || save.isPending}>
+        <Button type="submit" disabled={!dirty || save.isPending}>
+          {save.isPending && <Spinner />}
+          {!save.isPending && <SaveIcon />}
           Salvar perfil
-        </button>
+        </Button>
       </ActionBar>
     </form>
   );

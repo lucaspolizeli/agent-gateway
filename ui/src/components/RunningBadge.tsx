@@ -1,14 +1,17 @@
+import type { ComponentProps } from "react";
+import { Badge } from "@/components/ui/badge";
 import type { ProfileState } from "../domain/health.ts";
-import { Badge, type Tone } from "./Badge.tsx";
 
-const looks: Record<ProfileState, { tone: Tone; label: string }> = {
-  running: { tone: "ok", label: "rodando" },
-  degraded: { tone: "warn", label: "com falha" },
-  stopped: { tone: "neutral", label: "parado" },
-  unknown: { tone: "neutral", label: "…" },
+type Variant = ComponentProps<typeof Badge>["variant"];
+
+const looks: Record<ProfileState, { variant: Variant; label: string }> = {
+  running: { variant: "success", label: "rodando" },
+  degraded: { variant: "warning", label: "com falha" },
+  stopped: { variant: "secondary", label: "parado" },
+  unknown: { variant: "outline", label: "…" },
 };
 
 export function RunningBadge({ state }: { state: ProfileState }) {
   const look = looks[state];
-  return <Badge tone={look.tone}>{look.label}</Badge>;
+  return <Badge variant={look.variant}>{look.label}</Badge>;
 }

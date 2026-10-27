@@ -7,5 +7,6 @@ export const queryKeys = {
   skillSets: ["skills"],
   skill: (set: string, name: string) => ["skill", set, name],
   importable: ["importable"],
+  userSkills: ["skills-user"],
   projects: ["projects"],
 } as const;

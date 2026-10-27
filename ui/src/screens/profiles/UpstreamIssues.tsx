@@ -1,7 +1,11 @@
+import { RotateCwIcon } from "lucide-react";
 import type { UpstreamState } from "../../contract.ts";
-import { CountBadge } from "../../components/CountBadge.tsx";
-import { MutationStatus } from "../../components/MutationStatus.tsx";
-import { reconnectRowVerdict } from "../../components/reconnectVerdict.ts";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Spinner } from "@/components/ui/spinner";
+import { withFeedback } from "../../components/feedback.ts";
+import { reconnectVerdict } from "../../components/reconnectVerdict.ts";
 import { StatusDot } from "../../components/StatusDot.tsx";
 import { UpstreamBadge } from "../../components/UpstreamBadge.tsx";
 import { missingSecretKeys } from "../../domain/health.ts";
@@ -15,50 +19,57 @@ export function UpstreamIssues({ profile, upstreams }: { profile: string; upstre
     return null;
   }
   return (
-    <section className="upstream-issues" aria-label="Servidores sem tools">
-      <header className="upstream-issues-header">
-        <h3 className="section-title">Servidores sem tools</h3>
-        <CountBadge count={issues.length} tone="danger" />
-      </header>
-      <ul className="upstream-issues-list">
+    <section aria-label="Servidores sem tools" className="flex flex-col gap-2">
+      <h3 className="flex items-center gap-2 text-sm font-medium">
+        Servidores sem tools
+        <Badge variant="destructive">{issues.length}</Badge>
+      </h3>
+      <ItemGroup className="gap-2">
         {issues.map((upstream) => (
           <UpstreamIssue key={upstream.server} profile={profile} upstream={upstream} />
         ))}
-      </ul>
+      </ItemGroup>
     </section>
   );
 }
 
 function UpstreamIssue({ profile, upstream }: { profile: string; upstream: UpstreamState }) {
   const reconnect = useReconnectServer();
+  const vars = { profile, server: upstream.server };
   return (
-    <li className="upstream-issue" data-feedback-scope>
-      <StatusDot health={upstream.state} />
-      <div className="upstream-issue-body">
-        <div className="row">
-          <a className="mono" href={hrefFor({ screen: "servers", server: upstream.server })}>
+    <Item variant="outline" size="sm" className="items-start">
+      <ItemMedia className="pt-1.5">
+        <StatusDot health={upstream.state} />
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle>
+          <a className="font-mono underline-offset-4 hover:underline" href={hrefFor({ screen: "servers", server: upstream.server })}>
             {upstream.server}
           </a>
           <UpstreamBadge upstream={upstream} />
-        </div>
+        </ItemTitle>
         <IssueDetail profile={profile} upstream={upstream} />
-        <MutationStatus mutation={reconnect} verdict={reconnectRowVerdict} />
-      </div>
-      <button
-        type="button"
-        className="small"
-        disabled={reconnect.isPending}
-        onClick={() => reconnect.mutate({ profile, server: upstream.server })}
-      >
-        Reconectar
-      </button>
-    </li>
+      </ItemContent>
+      <ItemActions>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={reconnect.isPending}
+          onClick={() => void withFeedback(reconnect.mutateAsync(vars), (status) => reconnectVerdict(status, vars))}
+        >
+          {reconnect.isPending && <Spinner />}
+          {!reconnect.isPending && <RotateCwIcon />}
+          Reconectar
+        </Button>
+      </ItemActions>
+    </Item>
   );
 }
 
 function IssueDetail({ profile, upstream }: { profile: string; upstream: UpstreamState }) {
   if (upstream.state === "connecting") {
-    return <span className="muted small">Conectando… as tools aparecem quando o servidor responder.</span>;
+    return <p className="text-xs text-muted-foreground">Conectando… as tools aparecem quando o servidor responder.</p>;
   }
   if (upstream.state === "ready") {
     return null;
@@ -66,9 +77,14 @@ function IssueDetail({ profile, upstream }: { profile: string; upstream: Upstrea
   const keys = missingSecretKeys(upstream.error);
   return (
     <>
-      <pre className="issue-error">{upstream.error}</pre>
+      <pre className="mt-1 max-h-32 overflow-auto rounded-md bg-muted px-2 py-1.5 font-mono text-xs whitespace-pre-wrap text-destructive">
+        {upstream.error}
+      </pre>
       {keys.length > 0 && (
-        <a className="small" href={hrefFor({ screen: "profiles", profile, tab: "segredos" })}>
+        <a
+          className="text-xs font-medium underline underline-offset-4"
+          href={hrefFor({ screen: "profiles", profile, tab: "segredos" })}
+        >
           Definir {keys.join(", ")} na aba Segredos
         </a>
       )}

@@ -1,18 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { captureAdminToken } from "./api/token.ts";
 import { App } from "./App.tsx";
-import "./styles/tokens.css";
-import "./styles/base.css";
-import "./styles/components.css";
-import "./styles/shell.css";
-import "./styles/status.css";
-import "./styles/servers.css";
-import "./styles/profiles.css";
-import "./styles/skills.css";
-import "./styles/projects.css";
-import "./styles/responsive.css";
+import "./index.css";
 
 captureAdminToken();
 
@@ -30,7 +23,11 @@ if (root === null) {
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <TooltipProvider delayDuration={300}>
+        <App />
+        {/* Lifted above the sticky save bar that editors pin to the bottom of the viewport. */}
+        <Toaster position="bottom-right" offset={{ bottom: 80, right: 16 }} closeButton />
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

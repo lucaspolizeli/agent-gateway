@@ -11,6 +11,8 @@ import type {
   ServerTestRequest,
   ServerTestResult,
   SkillDocument,
+  SkillOrigin,
+  SkillsDoctorReport,
   SkillSet,
   SyncResult,
   Transport,
@@ -143,6 +145,19 @@ export const listImportableSkills = () => request<ImportableSkill[]>("GET", "/sk
 
 export const importSkill = (path: string, toSet: string) =>
   request<SkillSet[]>("POST", "/skills/import", { path, toSet });
+
+/** One entry of `GET /api/skills/user`, which the contract describes inline. */
+export type UserSkill = { name: string; description: string; origin: SkillOrigin };
+
+export const listUserSkills = () => request<UserSkill[]>("GET", "/skills/user");
+
+/** `dir` undefined runs the doctor at the user level. */
+export function runSkillsDoctor(dir: string | undefined) {
+  if (dir === undefined) {
+    return request<SkillsDoctorReport>("POST", "/skills/doctor", {});
+  }
+  return request<SkillsDoctorReport>("POST", "/skills/doctor", { dir });
+}
 
 // ---------- projects ----------
 

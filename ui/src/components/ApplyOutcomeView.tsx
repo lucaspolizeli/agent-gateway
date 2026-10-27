@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
 import type { ApplyOutcome } from "../domain/applyResult.ts";
 import { ApplyResultView } from "./ApplyResultView.tsx";
-import { Badge, type Tone } from "./Badge.tsx";
 
 type Entry = { dir: string; reason: string };
 
@@ -11,47 +11,68 @@ const UNSAFE_REASON = "A pasta resolve para a configuração do usuário (por ex
 /** Every bucket of an apply, so a project never disappears from the result: applied, missing, refused or failed. */
 export function ApplyOutcomeView({ outcome }: { outcome: ApplyOutcome }) {
   return (
-    <>
-      {outcome.applied.map((result) => (
-        <ApplyResultView key={result.dir} result={result} />
-      ))}
-      <Bucket
+    <div className="space-y-3">
+      {outcome.applied.length > 0 && (
+        <Bucket title="Aplicados" variant="success" count={outcome.applied.length}>
+          {outcome.applied.map((result) => (
+            <ApplyResultView key={result.dir} result={result} />
+          ))}
+        </Bucket>
+      )}
+      <ReasonBucket
         title="Pasta não encontrada"
-        tone="warn"
+        variant="warning"
         entries={outcome.missing.map((dir) => ({ dir, reason: MISSING_REASON }))}
       />
-      <Bucket
+      <ReasonBucket
         title="Recusados"
-        tone="warn"
+        variant="warning"
         entries={outcome.unsafe.map((dir) => ({ dir, reason: UNSAFE_REASON }))}
       />
-      <Bucket
+      <ReasonBucket
         title="Não aplicados"
-        tone="danger"
+        variant="destructive"
         entries={outcome.failed.map((entry) => ({ dir: entry.dir, reason: entry.error }))}
       />
-    </>
+    </div>
   );
 }
 
-function Bucket({ title, tone, entries }: { title: string; tone: Tone; entries: Entry[] }): ReactNode {
+type BucketProps = {
+  title: string;
+  variant: ComponentProps<typeof Badge>["variant"];
+  count: number;
+  children: ReactNode;
+};
+
+function Bucket({ title, variant, count, children }: BucketProps) {
+  return (
+    <section className="space-y-2">
+      <h3 className="flex items-center gap-2 text-sm font-medium">
+        <Badge variant={variant}>{title}</Badge>
+        <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function ReasonBucket({ title, variant, entries }: Omit<BucketProps, "count" | "children"> & { entries: Entry[] }) {
   if (entries.length === 0) {
     return null;
   }
   return (
-    <div className="bucket">
-      <div className="bucket-title">
-        <Badge tone={tone}>{title}</Badge>
-        <span className="count count-neutral">{entries.length}</span>
-      </div>
-      <ul className="bucket-list">
+    <Bucket title={title} variant={variant} count={entries.length}>
+      <ul className="space-y-2">
         {entries.map((entry) => (
-          <li key={entry.dir} className="bucket-entry">
-            <span className="mono bucket-dir">{entry.dir}</span>
-            <span className="bucket-reason">{entry.reason}</span>
+          <li key={entry.dir} className="rounded-lg border p-3">
+            <div className="truncate font-mono text-xs" title={entry.dir}>
+              {entry.dir}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">{entry.reason}</div>
           </li>
         ))}
       </ul>
-    </div>
+    </Bucket>
   );
 }

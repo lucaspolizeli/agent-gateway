@@ -1,28 +1,21 @@
 import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
 
-type Props = {
-  messages: ReactNode;
-  children: ReactNode;
-  className?: string;
-};
-
-/** Sticks to the bottom of the scrolling detail so saving never needs a scroll. */
-export function ActionBar({ messages, children, className }: Props) {
-  let barClass = "action-bar";
-  if (className !== undefined) {
-    barClass = `action-bar ${className}`;
-  }
+/** The last row of an editor card, stuck to the bottom of the viewport so saving never needs a scroll. */
+export function ActionBar({ status, children }: { status: ReactNode; children: ReactNode }) {
   return (
-    <div className={barClass}>
-      <div className="action-bar-messages">{messages}</div>
-      <div className="action-bar-actions">{children}</div>
+    <div className="sticky bottom-0 z-10 -mb-(--card-spacing) in-data-[slot=card-content]:-mx-(--card-spacing) flex flex-wrap items-center gap-2 rounded-b-xl border-t bg-card/95 px-(--card-spacing) py-3 backdrop-blur supports-backdrop-filter:bg-card/85">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-sm" aria-live="polite">
+        {status}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
   );
 }
 
 export function DirtyIndicator({ dirty }: { dirty: boolean }) {
   if (!dirty) {
-    return <span className="dirty-indicator clean">sem alterações</span>;
+    return <span className="text-muted-foreground">Sem alterações</span>;
   }
-  return <span className="dirty-indicator">alterações não salvas</span>;
+  return <Badge variant="warning">Alterações não salvas</Badge>;
 }

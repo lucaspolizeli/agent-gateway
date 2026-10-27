@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
@@ -37,7 +38,10 @@ function printAdminUrl(): Plugin {
 
 export default defineConfig({
   base: "/ui/",
-  plugins: [react(), printAdminUrl()],
+  plugins: [react(), tailwindcss(), printAdminUrl()],
+  resolve: {
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   server: {
     proxy: {
       "/api": { target: `http://127.0.0.1:${agwPort}`, changeOrigin: true },
