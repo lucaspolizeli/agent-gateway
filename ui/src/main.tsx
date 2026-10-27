@@ -8,6 +8,7 @@ import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/shell.css";
 import "./styles/status.css";
+import "./styles/servers.css";
 
 captureAdminToken();
 

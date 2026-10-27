@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { ConfigEdit, ServerSpec } from "../../contract.ts";
+import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
+import { Badge } from "../../components/Badge.tsx";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { RenameControl } from "../../components/RenameControl.tsx";
@@ -11,10 +13,10 @@ import {
   type ServerForm,
   type ServerKind,
 } from "../../domain/serverForm.ts";
-import { navigate } from "../../router.ts";
-import { useConfigEdit } from "../../state/config.ts";
-import { HttpFields, StdioFields } from "./ServerFields.tsx";
-import { ServerTestPanel } from "./ServerTestPanel.tsx";
+import { hrefFor, navigate } from "../../router.ts";
+import { useConfigEdit, useServerTest } from "../../state/config.ts";
+import { AdvancedFields, ConnectionFields, VariablesFields } from "./ServerFields.tsx";
+import { TestControls, TestResultView } from "./ServerTestPanel.tsx";
 
 type RenameServer = Extract<ConfigEdit, { op: "renameServer" }>;
 
@@ -28,7 +30,8 @@ type Props = {
   onCreated: (name: string) => void;
 };
 
-const kindLabels: Record<ServerKind, string> = { stdio: "stdio (processo local)", http: "http (remoto)" };
+const kindLabels: Record<ServerKind, string> = { stdio: "stdio · processo local", http: "http · remoto" };
+const variablesTitles: Record<ServerKind, string> = { stdio: "Ambiente", http: "Headers" };
 
 function initialForm(target: EditorTarget): ServerForm {
   if (target.kind === "existing") {
@@ -40,18 +43,19 @@ function initialForm(target: EditorTarget): ServerForm {
 export function ServerEditor({ target, profiles, usedBy, existingNames, onCreated }: Props) {
   const [name, setName] = useState("");
   const [form, setForm] = useState(() => initialForm(target));
+  const [testProfile, setTestProfile] = useState(usedBy[0] ?? profiles[0] ?? "");
   const save = useConfigEdit();
-  const remove = useConfigEdit(() => navigate({ screen: "servers" }));
-  const rename = useConfigEdit<RenameServer>((edit) => navigate({ screen: "servers", server: edit.to }));
+  const test = useServerTest();
 
   const spec = specFromForm(form);
-  const problems = formProblems(form);
+  const specProblems = formProblems(form);
+  const problems = [...specProblems];
   const newName = name.trim();
   if (target.kind === "new" && newName === "") {
-    problems.push("Informe o nome.");
+    problems.unshift("Informe o nome.");
   }
   if (target.kind === "new" && existingNames.includes(newName)) {
-    problems.push(`Já existe um servidor chamado ${newName}.`);
+    problems.unshift(`Já existe um servidor chamado ${newName}.`);
   }
   let dirty = true;
   if (target.kind === "existing") {
@@ -66,18 +70,37 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
     save.mutate({ op: "upsertServer", name: newName, spec }, { onSuccess: () => onCreated(newName) });
   }
 
+  function runTest() {
+    if (testProfile === "") {
+      test.mutate({ spec });
+      return;
+    }
+    test.mutate({ spec, profile: testProfile });
+  }
+
   return (
     <form
-      className="editor"
+      className="detail"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
       }}
     >
-      <header className="editor-header">
+      {target.kind === "existing" && <ExistingHeader name={target.name} kind={form.kind} usedBy={usedBy} />}
+      {target.kind === "new" && (
+        <header className="detail-header">
+          <div className="detail-title">
+            <h2>Novo servidor</h2>
+            <span className="muted small">Preencha a conexão, teste e salve.</span>
+          </div>
+        </header>
+      )}
+
+      <section className="section">
+        <h3 className="section-title">Conexão</h3>
         {target.kind === "new" && (
-          <label className="field grow">
-            <span>Nome</span>
+          <label className="field">
+            <span className="field-label">Nome</span>
             <input
               className="mono"
               value={name}
@@ -87,66 +110,112 @@ export function ServerEditor({ target, profiles, usedBy, existingNames, onCreate
             />
           </label>
         )}
-        {target.kind === "existing" && (
-          <>
-            <h2 className="mono">{target.name}</h2>
-            <span className="spacer" />
-            <RenameControl
-              current={target.name}
-              disabled={rename.isPending}
-              onRename={(to) => rename.mutate({ op: "renameServer", from: target.name, to })}
-            />
-            <ConfirmButton
-              label="Remover"
-              question={`Remover ${target.name} de todos os perfis?`}
-              disabled={remove.isPending}
-              onConfirm={() => remove.mutate({ op: "removeServer", name: target.name })}
-            />
-          </>
-        )}
-      </header>
-      <MutationStatus mutation={rename} success="Renomeado." />
-      <MutationStatus mutation={remove} success="Removido." />
-      {target.kind === "existing" && (
-        <div className="muted small">
-          Usado por: {usedBy.join(", ")}
-          {usedBy.length === 0 && "nenhum perfil"}
-        </div>
-      )}
-
-      <div className="segmented" role="radiogroup" aria-label="Tipo">
-        {(Object.keys(kindLabels) as ServerKind[]).map((kind) => (
-          <label key={kind} className="segment">
-            <input
-              type="radio"
-              name="server-kind"
-              checked={form.kind === kind}
-              onChange={() => setForm(emptyForms[kind]())}
-            />
-            {kindLabels[kind]}
-          </label>
-        ))}
-      </div>
-
-      {form.kind === "stdio" && <StdioFields form={form} onChange={setForm} />}
-      {form.kind === "http" && <HttpFields form={form} onChange={setForm} />}
-
-      {problems.length > 0 && (
-        <ul className="problems">
-          {problems.map((problem) => (
-            <li key={problem}>{problem}</li>
+        <div className="segmented" role="radiogroup" aria-label="Transporte">
+          {(Object.keys(kindLabels) as ServerKind[]).map((kind) => (
+            <label key={kind} className="segment">
+              <input
+                type="radio"
+                name="server-kind"
+                checked={form.kind === kind}
+                onChange={() => setForm(emptyForms[kind]())}
+              />
+              {kindLabels[kind]}
+            </label>
           ))}
-        </ul>
+        </div>
+        <ConnectionFields form={form} onChange={setForm} />
+      </section>
+
+      <section className="section">
+        <h3 className="section-title">{variablesTitles[form.kind]}</h3>
+        <p className="section-hint">
+          Use <code>{"${NOME}"}</code> para ler um valor dos segredos do perfil.
+        </p>
+        <VariablesFields form={form} onChange={setForm} />
+      </section>
+
+      {form.kind === "stdio" && (
+        <section className="section">
+          <h3 className="section-title">Avançado</h3>
+          <AdvancedFields form={form} onChange={setForm} />
+        </section>
       )}
 
-      <div className="row">
+      {(test.isPending || test.error !== null || test.data !== undefined) && (
+        <section className="section test-section" aria-live="polite">
+          <h3 className="section-title">Teste de conexão</h3>
+          {test.isPending && <span className="status-line pending">Conectando…</span>}
+          {test.error !== null && <div className="error-box">{test.error.message}</div>}
+          {!test.isPending && test.data !== undefined && <TestResultView result={test.data} />}
+        </section>
+      )}
+
+      <ActionBar>
+        <BarStatus problems={problems} dirty={dirty} isNew={target.kind === "new"} />
+        <MutationStatus mutation={save} />
+        <span className="spacer" />
+        <TestControls
+          profiles={profiles}
+          profile={testProfile}
+          onProfileChange={setTestProfile}
+          disabled={specProblems.length > 0 || test.isPending}
+          onRun={runTest}
+        />
+        <span className="action-bar-divider" />
         <button type="submit" className="primary" disabled={problems.length > 0 || !dirty || save.isPending}>
           Salvar
         </button>
-        <MutationStatus mutation={save} />
-      </div>
-
-      <ServerTestPanel spec={spec} profiles={profiles} disabled={formProblems(form).length > 0} />
+      </ActionBar>
     </form>
+  );
+}
+
+function BarStatus({ problems, dirty, isNew }: { problems: string[]; dirty: boolean; isNew: boolean }) {
+  if (problems.length > 0) {
+    return <span className="bar-problem">{problems[0]}</span>;
+  }
+  if (isNew) {
+    return <span className="dirty-indicator">novo servidor, ainda não salvo</span>;
+  }
+  return <DirtyIndicator dirty={dirty} />;
+}
+
+type HeaderProps = { name: string; kind: ServerKind; usedBy: string[] };
+
+function ExistingHeader({ name, kind, usedBy }: HeaderProps) {
+  const remove = useConfigEdit(() => navigate({ screen: "servers" }));
+  const rename = useConfigEdit<RenameServer>((edit) => navigate({ screen: "servers", server: edit.to }));
+  return (
+    <header className="detail-header">
+      <div className="detail-title">
+        <h2>
+          <span className="mono">{name}</span>
+          <Badge tone="neutral">{kind}</Badge>
+        </h2>
+        <span className="muted small used-by">
+          {usedBy.length === 0 && "Nenhum perfil usa este servidor."}
+          {usedBy.length > 0 && "Usado por "}
+          {usedBy.map((profile, index) => (
+            <span key={profile}>
+              {index > 0 && ", "}
+              <a href={hrefFor({ screen: "profiles", profile })}>{profile}</a>
+            </span>
+          ))}
+        </span>
+      </div>
+      <MutationStatus mutation={rename} success="Renomeado." />
+      <MutationStatus mutation={remove} success="Removido." />
+      <RenameControl
+        current={name}
+        disabled={rename.isPending}
+        onRename={(to) => rename.mutate({ op: "renameServer", from: name, to })}
+      />
+      <ConfirmButton
+        label="Remover"
+        question={`Remover ${name} de todos os perfis?`}
+        disabled={remove.isPending}
+        onConfirm={() => remove.mutate({ op: "removeServer", name })}
+      />
+    </header>
   );
 }

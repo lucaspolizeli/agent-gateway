@@ -1,35 +1,50 @@
 import { useState } from "react";
 import type { GatewayConfig } from "../contract.ts";
 import { Badge } from "../components/Badge.tsx";
+import { PlusIcon } from "../components/Icons.tsx";
+import { PageHeader } from "../components/PageHeader.tsx";
 import { QueryState } from "../components/QueryState.tsx";
+import { StatusDot } from "../components/StatusDot.tsx";
+import { serverHealth, type Health } from "../domain/health.ts";
 import { serverKind, serverSummary } from "../domain/serverForm.ts";
 import { hrefFor, navigate } from "../router.ts";
 import { useConfig } from "../state/config.ts";
+import { useGatewayHealth } from "../state/health.ts";
 import { ServerEditor, type EditorTarget } from "./servers/ServerEditor.tsx";
 
 export function ServersScreen({ selected }: { selected?: string }) {
   const config = useConfig();
+  const health = useGatewayHealth();
   const [creating, setCreating] = useState(false);
   return (
     <section>
-      <header className="screen-header">
-        <h1>Servidores</h1>
-        <span className="spacer" />
-        <button
-          type="button"
-          className="primary"
-          onClick={() => {
-            setCreating(true);
-            navigate({ screen: "servers" });
-          }}
-        >
-          Novo servidor
-        </button>
-      </header>
+      <PageHeader
+        title="Servidores"
+        description="Servidores MCP que os perfis podem usar. A saúde vem dos perfis rodando."
+        actions={
+          <button
+            type="button"
+            className="primary"
+            onClick={() => {
+              setCreating(true);
+              navigate({ screen: "servers" });
+            }}
+          >
+            <PlusIcon />
+            Novo servidor
+          </button>
+        }
+      />
       <QueryState query={config}>
         {(data) => (
           <div className="split">
-            <ServerList config={data} selected={selected} onSelect={() => setCreating(false)} />
+            <ServerList
+              config={data}
+              health={serverHealth([...health.statuses.values()])}
+              selected={selected}
+              creating={creating}
+              onSelect={() => setCreating(false)}
+            />
             <EditorPane
               config={data}
               target={editorTarget(data, creating, selected)}
@@ -62,16 +77,23 @@ function editorTarget(config: GatewayConfig, creating: boolean, selected?: strin
 function usedBy(config: GatewayConfig, server: string): string[] {
   return Object.entries(config.profiles)
     .filter(([, profile]) => profile.servers.includes(server))
-    .map(([name]) => name);
+    .map(([name]) => name)
+    .sort();
 }
 
-type ListProps = { config: GatewayConfig; selected?: string; onSelect: () => void };
+type ListProps = {
+  config: GatewayConfig;
+  health: Map<string, Health>;
+  selected?: string;
+  creating: boolean;
+  onSelect: () => void;
+};
 
-function ServerList({ config, selected, onSelect }: ListProps) {
+function ServerList({ config, health, selected, creating, onSelect }: ListProps) {
   const names = Object.keys(config.servers).sort();
   return (
-    <nav className="list">
-      {names.length === 0 && <p className="muted">Nenhum servidor.</p>}
+    <nav className="master" aria-label="Servidores">
+      {names.length === 0 && <p className="empty">Nenhum servidor.</p>}
       {names.map((name) => {
         const spec = config.servers[name];
         if (spec === undefined) {
@@ -80,16 +102,18 @@ function ServerList({ config, selected, onSelect }: ListProps) {
         return (
           <a
             key={name}
-            className="list-item"
-            aria-current={name === selected}
+            className="master-item"
+            aria-current={!creating && name === selected && "page"}
             href={hrefFor({ screen: "servers", server: name })}
             onClick={onSelect}
           >
-            <div className="row">
-              <span className="mono">{name}</span>
+            <span className="master-item-title">
+              <StatusDot health={health.get(name) ?? "unknown"} />
+              <span className="mono truncate">{name}</span>
+              <span className="spacer" />
               <Badge tone="neutral">{serverKind(spec)}</Badge>
-            </div>
-            <div className="muted small truncate mono">{serverSummary(spec)}</div>
+            </span>
+            <span className="master-item-meta mono truncate server-summary">{serverSummary(spec)}</span>
           </a>
         );
       })}
@@ -101,7 +125,7 @@ type PaneProps = { config: GatewayConfig; target?: EditorTarget; onCreated: (nam
 
 function EditorPane({ config, target, onCreated }: PaneProps) {
   if (target === undefined) {
-    return <div className="placeholder muted">Selecione um servidor ou crie um novo.</div>;
+    return <div className="placeholder">Selecione um servidor ou crie um novo.</div>;
   }
   let key = "new";
   let users: string[] = [];
