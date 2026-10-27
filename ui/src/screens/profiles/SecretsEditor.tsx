@@ -4,6 +4,7 @@ import { ConfirmButton } from "../../components/ConfirmButton.tsx";
 import { FieldHint } from "../../components/FieldHint.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { QueryState } from "../../components/QueryState.tsx";
+import { useInlinePrompt } from "../../components/useInlinePrompt.ts";
 import { hintFor, secretKeyProblem } from "../../domain/validation.ts";
 import { useDeleteSecret, useSecrets, useSetSecret } from "../../state/secrets.ts";
 
@@ -22,16 +23,18 @@ export function SecretsEditor({ profile, missing }: { profile: string; missing: 
           {(views) => {
             const keys = [...(views.find((view) => view.profile === profile)?.keys ?? [])].sort();
             const absent = missing.filter((key) => !keys.includes(key)).sort();
+            // One list keyed by name: a secret that gets defined stays the same row, so its "Salvo." is still on screen.
+            const rows = [
+              ...absent.map((key) => ({ key, missing: true })),
+              ...keys.map((key) => ({ key, missing: false })),
+            ];
             return (
               <>
                 <ul className="secret-list">
-                  {absent.map((key) => (
-                    <SecretRow key={`missing:${key}`} profile={profile} secretKey={key} missing />
+                  {rows.map((row) => (
+                    <SecretRow key={row.key} profile={profile} secretKey={row.key} missing={row.missing} />
                   ))}
-                  {keys.map((key) => (
-                    <SecretRow key={key} profile={profile} secretKey={key} missing={false} />
-                  ))}
-                  {keys.length === 0 && absent.length === 0 && (
+                  {rows.length === 0 && (
                     <li className="secret-empty muted">Nenhum segredo neste perfil.</li>
                   )}
                 </ul>
@@ -52,12 +55,13 @@ function SecretRow({ profile, secretKey, missing }: RowProps) {
   const [value, setValue] = useState("");
   const set = useSetSecret();
   const remove = useDeleteSecret();
+  const { trigger, entryRef } = useInlinePrompt(editing);
   let editLabel = "Substituir";
   if (missing) {
     editLabel = "Definir";
   }
   return (
-    <li className="secret-row" data-missing={missing}>
+    <li className="secret-row" data-missing={missing} data-feedback-scope>
       <span className="mono secret-key">{secretKey}</span>
       {missing && <Badge tone="warn">faltando</Badge>}
       {!missing && <Badge tone="ok">definido</Badge>}
@@ -83,7 +87,7 @@ function SecretRow({ profile, secretKey, missing }: RowProps) {
           <input
             type="password"
             autoComplete="new-password"
-            autoFocus
+            ref={entryRef}
             aria-label={`Valor de ${secretKey}`}
             placeholder="valor"
             value={value}
@@ -103,7 +107,7 @@ function SecretRow({ profile, secretKey, missing }: RowProps) {
         </form>
       )}
       {!editing && (
-        <button type="button" onClick={() => setEditing(true)}>
+        <button ref={trigger} type="button" onClick={() => setEditing(true)}>
           {editLabel}
         </button>
       )}

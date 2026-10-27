@@ -1,6 +1,7 @@
 import { useState, type KeyboardEvent } from "react";
 import type { SkillDocument } from "../../contract.ts";
 import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
+import { focusFirstField } from "../../components/focusFirstField.ts";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
 import { ChevronIcon } from "../../components/Icons.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
@@ -106,7 +107,14 @@ function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[
         }
       >
         {dirty && (
-          <button type="button" onClick={reload}>
+          <button
+            type="button"
+            onClick={(event) => {
+              const form = event.currentTarget.form;
+              reload();
+              focusFirstField(form);
+            }}
+          >
             Descartar
           </button>
         )}

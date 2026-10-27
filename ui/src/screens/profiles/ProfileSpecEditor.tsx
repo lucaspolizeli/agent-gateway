@@ -1,5 +1,6 @@
 import type { GatewayConfig, ProfileSpec, ResolvedProfileView } from "../../contract.ts";
 import { ActionBar, DirtyIndicator } from "../../components/ActionBar.tsx";
+import { focusFirstField } from "../../components/focusFirstField.ts";
 import { CheckboxGroup } from "../../components/CheckboxGroup.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { StaleNotice } from "../../components/StaleNotice.tsx";
@@ -84,7 +85,14 @@ export function ProfileSpecEditor({ name, spec, config, view, skillSets }: Props
         }
       >
         {dirty && (
-          <button type="button" onClick={reload}>
+          <button
+            type="button"
+            onClick={(event) => {
+              const form = event.currentTarget.form;
+              reload();
+              focusFirstField(form);
+            }}
+          >
             Descartar
           </button>
         )}
