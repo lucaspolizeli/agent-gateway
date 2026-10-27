@@ -99,3 +99,10 @@ export function reconnectOutcome(status: ProfileStatus, server: string): Reconne
   }
   return { kind: upstream.state };
 }
+
+const MISSING_SECRET = /Missing secret \$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+
+/** The `${KEY}` names a failed upstream reports as missing, so its error can link to where they are defined. */
+export function missingSecretKeys(error: string): string[] {
+  return [...new Set([...error.matchAll(MISSING_SECRET)].map((match) => match[1] ?? ""))].filter((key) => key !== "");
+}

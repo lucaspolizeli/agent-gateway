@@ -63,3 +63,7 @@ export function groupByServer(tools: ToolInfo[]): Array<[string, ToolInfo[]]> {
   }
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
+
+export function toolMatches(tool: ToolInfo, needle: string): boolean {
+  return tool.name.toLowerCase().includes(needle);
+}

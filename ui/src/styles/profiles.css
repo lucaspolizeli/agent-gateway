@@ -169,3 +169,44 @@
 .new-secret-key {
   width: 220px;
 }
+
+.upstream-issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--danger-subtle);
+}
+.upstream-issues-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.upstream-issues-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.upstream-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+.upstream-issue .dot {
+  margin-top: 7px;
+}
+.upstream-issue-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.issue-error {
+  color: var(--danger);
+  font-size: var(--text-xs);
+  max-height: 9em;
+  overflow: auto;
+}

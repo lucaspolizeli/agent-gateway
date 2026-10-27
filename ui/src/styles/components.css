@@ -266,12 +266,11 @@
   background: transparent;
   font-size: var(--text-xs);
 }
-.switch:hover:not(:disabled) {
+.switch:hover:not([aria-disabled="true"]) {
   background: var(--surface-hover);
 }
-.switch:disabled {
-  background: transparent;
-  border-color: transparent;
+.switch[aria-disabled="true"] {
+  cursor: not-allowed;
 }
 .switch-track {
   position: relative;
@@ -298,7 +297,7 @@
 .switch[aria-checked="true"] .switch-thumb {
   transform: translateX(12px);
 }
-.switch:disabled .switch-track {
+.switch[aria-disabled="true"] .switch-track {
   opacity: 0.5;
 }
 .switch-text {

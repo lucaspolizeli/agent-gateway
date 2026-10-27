@@ -4,9 +4,10 @@ import { Badge } from "../../components/Badge.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { QueryState } from "../../components/QueryState.tsx";
 import { Switch } from "../../components/Switch.tsx";
-import { groupByServer, toolVisibility } from "../../domain/profiles.ts";
+import { groupByServer, toolMatches, toolVisibility } from "../../domain/profiles.ts";
 import { useConfigEdit } from "../../state/config.ts";
 import { useProfileStatus, useStartProfile } from "../../state/profiles.ts";
+import { UpstreamIssues } from "./UpstreamIssues.tsx";
 
 export function ToolsPanel({ profile }: { profile: string }) {
   const status = useProfileStatus(profile);
@@ -32,9 +33,12 @@ export function ToolsPanel({ profile }: { profile: string }) {
             );
           }
           const visible = data.tools.filter((tool) => !tool.hidden).length;
-          const needle = filter.trim().toLowerCase();
+          const query = filter.trim();
+          const needle = query.toLowerCase();
+          const noMatches = needle !== "" && !data.tools.some((tool) => toolMatches(tool, needle));
           return (
             <>
+              <UpstreamIssues profile={profile} upstreams={data.upstreams} />
               <div className="tools-toolbar">
                 <span className="secondary">
                   <b>{visible}</b> de {data.tools.length} tools visíveis para os clientes
@@ -51,6 +55,7 @@ export function ToolsPanel({ profile }: { profile: string }) {
                 />
               </div>
               {data.tools.length === 0 && <p className="empty">Nenhuma tool exposta pelos servidores.</p>}
+              {noMatches && <p className="empty">Nenhuma tool corresponde a "{query}"</p>}
               {groupByServer(data.tools).map(([server, group]) => (
                 <ToolGroup
                   key={server}
@@ -80,7 +85,7 @@ type GroupProps = {
 };
 
 function ToolGroup({ server, tools, needle, profile, busy, onToggle }: GroupProps) {
-  const shown = tools.filter((tool) => tool.name.toLowerCase().includes(needle));
+  const shown = tools.filter((tool) => toolMatches(tool, needle));
   if (shown.length === 0) {
     return null;
   }
