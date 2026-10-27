@@ -1,8 +1,12 @@
 import type { SkillSet } from "../contract.ts";
 import { Badge } from "../components/Badge.tsx";
+import { CountBadge } from "../components/CountBadge.tsx";
+import { PlusIcon } from "../components/Icons.tsx";
+import { PageHeader } from "../components/PageHeader.tsx";
+import { Popover } from "../components/Popover.tsx";
 import { QueryState } from "../components/QueryState.tsx";
 import { hrefFor } from "../router.ts";
-import { useSkillSets } from "../state/skills.ts";
+import { useImportableSkills, useSkillSets } from "../state/skills.ts";
 import { NewSetForm, NewSkillForm } from "./skills/CreateForms.tsx";
 import { ImportPanel } from "./skills/ImportPanel.tsx";
 import { SkillEditor } from "./skills/SkillEditor.tsx";
@@ -13,69 +17,99 @@ type Props = { set?: string; skill?: string };
 
 export function SkillsScreen({ set, skill }: Props) {
   const sets = useSkillSets();
+  const importable = useImportableSkills();
+  const data = sets.data ?? [];
   return (
-    <section>
-      <header className="screen-header">
-        <h1>Skills</h1>
-      </header>
-      <QueryState query={sets}>
-        {(data) => (
+    <section className="skills-page">
+      <PageHeader
+        title="Skills"
+        description="Conjuntos de SKILL.md: o global vai para o usuário, os outros entram nos projetos pelos perfis."
+        actions={
           <>
-            <div className="toolbar">
-              <NewSetForm sets={data} />
-              <NewSkillForm key={set} sets={data} defaultSet={set} />
-            </div>
-            <div className="split">
-              <div className="stack">
-                {data.map((skillSet) => (
-                  <SetCard key={skillSet.name} skillSet={skillSet} selectedSet={set} selectedSkill={skill} />
-                ))}
-                <ImportPanel sets={data} />
-              </div>
-              <EditorPane set={set} skill={skill} setNames={data.map((candidate) => candidate.name)} />
-            </div>
+            <Popover
+              title="Importar skills"
+              wide
+              label={
+                <>
+                  Importar
+                  <CountBadge count={importable.data?.length ?? 0} tone="accent" label="skills para importar" />
+                </>
+              }
+            >
+              {() => <ImportPanel sets={data} />}
+            </Popover>
+            <Popover title="Novo conjunto" label="Novo conjunto">
+              {(close) => <NewSetForm sets={data} onDone={close} />}
+            </Popover>
+            <Popover
+              title="Nova skill"
+              triggerClassName="primary"
+              label={
+                <>
+                  <PlusIcon />
+                  Nova skill
+                </>
+              }
+            >
+              {(close) => <NewSkillForm sets={data} defaultSet={set} onDone={close} />}
+            </Popover>
           </>
+        }
+      />
+      <QueryState query={sets}>
+        {(loaded) => (
+          <div className="split skills-split">
+            <nav className="master skill-tree" aria-label="Skills">
+              {loaded.length === 0 && <p className="empty">Nenhum conjunto.</p>}
+              {loaded.map((skillSet) => (
+                <SetGroup key={skillSet.name} skillSet={skillSet} selectedSet={set} selectedSkill={skill} />
+              ))}
+            </nav>
+            <EditorPane set={set} skill={skill} setNames={loaded.map((candidate) => candidate.name)} />
+          </div>
         )}
       </QueryState>
     </section>
   );
 }
 
-type SetCardProps = { skillSet: SkillSet; selectedSet?: string; selectedSkill?: string };
+type SetGroupProps = { skillSet: SkillSet; selectedSet?: string; selectedSkill?: string };
 
-function SetCard({ skillSet, selectedSet, selectedSkill }: SetCardProps) {
+function SetGroup({ skillSet, selectedSet, selectedSkill }: SetGroupProps) {
   return (
-    <article className="card" aria-current={skillSet.name === selectedSet && selectedSkill === undefined}>
-      <header className="card-header">
-        <span className="card-title mono">{skillSet.name}</span>
-        <Badge tone="accent">escopo: {scopeLabels[skillSet.scope]}</Badge>
-      </header>
-      <div className="muted small">
-        Usado por: {skillSet.usedBy.join(", ")}
-        {skillSet.usedBy.length === 0 && "nenhum perfil"}
+    <div className="set-group">
+      <div className="set-header">
+        <span className="set-name">{skillSet.name}</span>
+        <Badge tone="neutral">{scopeLabels[skillSet.scope]}</Badge>
+        <span className="spacer" />
+        <span className="count count-neutral">{skillSet.skills.length}</span>
       </div>
-      <ul className="skill-list">
-        {skillSet.skills.length === 0 && <li className="muted small">Sem skills.</li>}
+      <div className="set-used-by">
+        {skillSet.usedBy.length === 0 && "Nenhum perfil usa"}
+        {skillSet.usedBy.length > 0 && `Usado por ${skillSet.usedBy.join(", ")}`}
+      </div>
+      <ul className="set-skills">
+        {skillSet.skills.length === 0 && <li className="muted small set-empty">Sem skills.</li>}
         {skillSet.skills.map((summary) => (
           <li key={summary.name}>
             <a
-              className="list-item"
-              aria-current={skillSet.name === selectedSet && summary.name === selectedSkill}
+              className="skill-item"
+              aria-current={skillSet.name === selectedSet && summary.name === selectedSkill && "page"}
               href={hrefFor({ screen: "skills", set: skillSet.name, skill: summary.name })}
             >
-              <span className="mono">{summary.name}</span>
-              <div className="muted small truncate">{summary.description}</div>
+              <span className="skill-item-name">{summary.name}</span>
+              <span className="skill-item-description truncate">{summary.description}</span>
             </a>
           </li>
         ))}
       </ul>
-    </article>
+    </div>
   );
 }
 
 function EditorPane({ set, skill, setNames }: { set?: string; skill?: string; setNames: string[] }) {
   if (set === undefined || skill === undefined) {
-    return <div className="placeholder muted">Selecione uma skill para editar.</div>;
+    return <div className="placeholder">Selecione uma skill para editar.</div>;
   }
   return <SkillEditor key={`${set}/${skill}`} set={set} name={skill} setNames={setNames} />;
 }

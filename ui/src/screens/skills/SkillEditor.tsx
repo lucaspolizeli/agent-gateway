@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import type { SkillDocument } from "../../contract.ts";
+import { DirtyIndicator } from "../../components/ActionBar.tsx";
 import { ConfirmButton } from "../../components/ConfirmButton.tsx";
+import { ChevronIcon } from "../../components/Icons.tsx";
 import { MutationStatus } from "../../components/MutationStatus.tsx";
 import { QueryState } from "../../components/QueryState.tsx";
-import { navigate } from "../../router.ts";
+import { hrefFor, navigate } from "../../router.ts";
 import { useDeleteSkill, useMoveSkill, useSaveSkill, useSkill } from "../../state/skills.ts";
 
 type Props = { set: string; name: string; setNames: string[] };
@@ -17,63 +19,79 @@ export function SkillEditor({ set, name, setNames }: Props) {
   );
 }
 
+const isMac = navigator.platform.toLowerCase().includes("mac");
+let saveShortcut = "Ctrl+S";
+if (isMac) {
+  saveShortcut = "⌘S";
+}
+
+function isSaveShortcut(event: KeyboardEvent): boolean {
+  return (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "s";
+}
+
 function LoadedEditor({ doc, setNames }: { doc: SkillDocument; setNames: string[] }) {
   const [content, setContent] = useState(doc.content);
   const save = useSaveSkill();
   const dirty = content !== doc.content;
 
+  function submit() {
+    if (dirty && !save.isPending) {
+      save.mutate({ set: doc.set, name: doc.name, content });
+    }
+  }
+
   return (
-    <div className="editor">
-      <header className="editor-header">
-        <h2 className="mono">
-          <span className="muted">{doc.set}/</span>
-          {doc.name}
-        </h2>
-        <span className="spacer" />
+    <form
+      className="detail skill-editor"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+      onKeyDown={(event) => {
+        if (isSaveShortcut(event)) {
+          event.preventDefault();
+          submit();
+        }
+      }}
+    >
+      <header className="detail-header editor-toolbar">
+        <div className="detail-title">
+          <nav className="breadcrumb" aria-label="Local da skill">
+            <a href={hrefFor({ screen: "skills", set: doc.set })}>{doc.set}</a>
+            <ChevronIcon />
+            <span aria-current="page">SKILL.md</span>
+          </nav>
+          <h2>{doc.name}</h2>
+        </div>
         <MoveControl doc={doc} setNames={setNames} />
         <DeleteControl doc={doc} />
       </header>
-      <form
-        className="stack"
-        onSubmit={(event) => {
-          event.preventDefault();
-          save.mutate({ set: doc.set, name: doc.name, content });
-        }}
-      >
-        <label className="field">
-          <span>SKILL.md</span>
-          <textarea
-            className="mono code"
-            spellCheck={false}
-            rows={28}
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-          />
-        </label>
-        <div className="row">
-          <button type="submit" className="primary" disabled={!dirty || save.isPending}>
-            Salvar
+      <textarea
+        className="mono skill-textarea"
+        aria-label={`Conteúdo de ${doc.name}/SKILL.md`}
+        spellCheck={false}
+        value={content}
+        onChange={(event) => setContent(event.target.value)}
+      />
+      <footer className="action-bar editor-footer">
+        <DirtyIndicator dirty={dirty} />
+        <MutationStatus mutation={save} />
+        <span className="muted small files-line truncate">
+          {doc.files.length === 0 && "Sem outros arquivos"}
+          {doc.files.length > 0 && <>Outros arquivos: <span className="mono">{doc.files.join(", ")}</span></>}
+        </span>
+        <span className="spacer" />
+        {dirty && (
+          <button type="button" onClick={() => setContent(doc.content)}>
+            Descartar
           </button>
-          {dirty && (
-            <button type="button" onClick={() => setContent(doc.content)}>
-              Descartar
-            </button>
-          )}
-          <MutationStatus mutation={save} />
-        </div>
-      </form>
-      <section className="panel">
-        <h3>Outros arquivos</h3>
-        {doc.files.length === 0 && <p className="muted small">Nenhum.</p>}
-        <ul className="file-list">
-          {doc.files.map((file) => (
-            <li key={file} className="mono">
-              {file}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
+        )}
+        <button type="submit" className="primary" disabled={!dirty || save.isPending}>
+          Salvar
+          <kbd className="kbd">{saveShortcut}</kbd>
+        </button>
+      </footer>
+    </form>
   );
 }
 
@@ -86,7 +104,9 @@ function MoveControl({ doc, setNames }: { doc: SkillDocument; setNames: string[]
   }
   return (
     <span className="row">
-      <select value={toSet} onChange={(event) => setToSet(event.target.value)}>
+      <MutationStatus mutation={move} success="Movida." />
+      <span className="muted small">Mover para</span>
+      <select value={toSet} aria-label="Mover para o conjunto" onChange={(event) => setToSet(event.target.value)}>
         {targets.map((set) => (
           <option key={set} value={set}>
             {set}
@@ -100,7 +120,6 @@ function MoveControl({ doc, setNames }: { doc: SkillDocument; setNames: string[]
       >
         Mover
       </button>
-      <MutationStatus mutation={move} success="Movida." />
     </span>
   );
 }
@@ -111,7 +130,7 @@ function DeleteControl({ doc }: { doc: SkillDocument }) {
     <>
       <ConfirmButton
         label="Excluir"
-        question={`Excluir ${doc.set}/${doc.name} e todos os arquivos?`}
+        question={`Excluir ${doc.name} e todos os arquivos?`}
         disabled={remove.isPending}
         onConfirm={() => remove.mutate({ set: doc.set, name: doc.name })}
       />
