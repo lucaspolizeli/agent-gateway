@@ -4,7 +4,7 @@ import { join, relative, sep } from "node:path";
 import { z } from "zod";
 import type { SkillOrigin } from "./admin/contract.ts";
 import { UserError } from "./errors.ts";
-import { collectSkills, GLOBAL_SET, linkSkills, type LinkReport, parseFrontmatter } from "./skills.ts";
+import { collectSkills, GLOBAL_SET, isInside, linkSkills, type LinkReport, parseFrontmatter } from "./skills.ts";
 
 /** User-level skill folders: Claude Code (and Grok) read `~/.claude/skills`, Codex reads `~/.agents/skills`. Read through `os.homedir()` on every call. */
 export function userSkillDirs(): string[] {
@@ -40,10 +40,6 @@ export function readSkillLock(): Map<string, string> {
   return new Map(Object.entries(parsed.data.skills).map(([name, entry]) => [name, entry.source]));
 }
 
-export function isInside(path: string, root: string): boolean {
-  return path === root || path.startsWith(root + sep);
-}
-
 function realPath(path: string): string | undefined {
   try {
     return realpathSync(path);
@@ -74,7 +70,7 @@ export function isRealDir(path: string): boolean {
  * Origin of the skill at `path`, an entry of a user or project skill dir: a link into the hub, a skill the
  * `skills` CLI installed, or anything else, which nothing manages.
  */
-export function originOf(home: string, path: string, name: string, lock: Map<string, string>): SkillOrigin {
+function originOf(home: string, path: string, name: string, lock: Map<string, string>): SkillOrigin {
   const hub = realPath(join(home, "skills"));
   const target = realPath(path);
   if (hub !== undefined && target !== undefined && isInside(target, hub)) {

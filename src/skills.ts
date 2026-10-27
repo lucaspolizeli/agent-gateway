@@ -24,7 +24,7 @@ export function collectSkills(skillsRoot: string, sets: string[]): Map<string, s
   return skills;
 }
 
-function isInside(path: string, root: string): boolean {
+export function isInside(path: string, root: string): boolean {
   return path === root || path.startsWith(root + sep);
 }
 
